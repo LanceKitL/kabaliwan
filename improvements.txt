@@ -1,0 +1,13 @@
+1. Bigger cards for each tasks.
+2. Implementing a playground directly on the chat, there should be an option there, or there are some tasks that will require the playground instead of quiz, then it should automatically adjust or be set to playground.
+3. cluttered code, separate each major functions to a different file.
+4. UI improvement - add more colors.
+5. Add an "upload a pdf file", or txt file, system will try to read that file and create a study roadmap for you.
+6. UX improvement - add a confetti after the user finishes a tasks, and AI will cheer the user, suggest to deep dive more about the topic, and will suggest small projects to just to learn.
+7. Add a pomodoro widget that binds on a phone using web socket, when the user starts the tasks, it will generate a qr code for a live tracker, which is a clock countdown that works on a phone browser, or added as extension (idk).
+8. Add a login, using their Email or Username with hashed password.
+9. Hash the API keys.
+10. Instead of tags, add a description (ai generated) overview of a roadmap.
+11. Fix the rating, if you click 4 star you cannot remove the rating.
+12. Use the email to remind users.
+

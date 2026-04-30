@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Zebri — AI Learning Roadmap</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=IBM+Plex+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@100..800&display=swap" rel="stylesheet">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Sora:wght@100..800&display=swap');
+/* ── RESET ── */
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --black:#000;--white:#fff;--yellow:#FDE047;--green:#4ADE80;
+  --pink:#F472B6;--sky:#38BDF8;--orange:#FB923C;--cream:#FFFBEB;
+  --muted:#D1C9B8;--red:#FF4444;
+  --b:2.5px solid #000;--bh:3px solid #000;
+  --s1:3px 3px 0 #000;--s2:4px 4px 0 #000;--s3:6px 6px 0 #000;--s4:8px 8px 0 #000;
+  --fm:'Sora',sans-serif;--fb:'Sora',sans-serif;
+}
+html,body{height:100%;width:100%;overflow:hidden;background:var(--cream);font-family:var(--fb);color:var(--black)}
+button{font-family:var(--fm);cursor:pointer;border:none}
+input,textarea{font-family:var(--fb);outline:none}
+
+/* ── SCREENS ── */
+.screen{position:fixed;inset:0;display:none;z-index:1}
+.screen.active{display:flex}
+
+/* ═══════════════════════════════════
+   SCREEN 0: API KEY
+═══════════════════════════════════ */
+#s-apikey{background:var(--black);flex-direction:column;align-items:center;justify-content:center;gap:0}
+.apikey-inner{display:flex;flex-direction:column;align-items:center;gap:24px;padding:40px;max-width:480px;width:100%}
+.logo-big{font-family:var(--fm);font-size:64px;font-weight:700;color:var(--yellow);letter-spacing:-4px;line-height:1}
+.logo-sub{font-family:var(--fm);font-size:11px;font-weight:700;color:var(--muted);letter-spacing:0.2em;text-transform:uppercase;margin-top:-12px}
+.api-card{background:var(--cream);border:var(--bh);box-shadow:var(--s4);padding:28px;width:100%;display:flex;flex-direction:column;gap:16px}
+.api-card-title{font-family:var(--fm);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.12em}
+.api-card-note{font-size:11px;color:#555;line-height:1.6}
+.api-card-note a{color:var(--black);font-weight:700}
+.field-label{font-family:var(--fm);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#666;margin-bottom:4px}
+.inp{width:100%;border:var(--bh);box-shadow:var(--s1);background:var(--white);padding:11px 14px;font-size:13px;transition:box-shadow .1s,transform .1s}
+.inp:focus{box-shadow:var(--s3);transform:translate(-1px,-1px)}
+.btn-primary{background:var(--yellow);border:var(--bh);box-shadow:var(--s2);font-family:var(--fm);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;padding:13px 28px;transition:transform .1s,box-shadow .1s;width:100%}
+.btn-primary:hover{transform:translate(2px,2px);box-shadow:var(--s1)}
+.btn-primary:active{transform:translate(4px,4px);box-shadow:none}
+.api-error{background:var(--pink);border:var(--b);padding:8px 12px;font-family:var(--fm);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;display:none}
+.api-error.show{display:block}
+.model-select{width:100%;border:var(--bh);box-shadow:var(--s1);background:var(--white);padding:11px 14px;font-family:var(--fb);font-size:13px;transition:box-shadow .1s;appearance:none;cursor:pointer}
+.model-select:focus{box-shadow:var(--s3)}
+
+/* ═══════════════════════════════════
+   SCREEN 1: HOME / LEADERBOARD
+═══════════════════════════════════ */
+#s-home{background:var(--cream);flex-direction:column;overflow:hidden}
+.home-header{background:var(--black);color:var(--yellow);border-bottom:var(--bh);padding:0 24px;height:60px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.home-logo{font-family:var(--fm);font-size:22px;font-weight:700;letter-spacing:-1px}
+.home-header-right{display:flex;align-items:center;gap:10px}
+.hbtn{background:var(--yellow);color:var(--black);border:var(--bh);box-shadow:var(--s1);font-family:var(--fm);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;padding:7px 14px;transition:transform .1s,box-shadow .1s}
+.hbtn:hover{transform:translate(2px,2px);box-shadow:none}
+.hbtn.pink{background:var(--pink)}
+.home-body{flex:1;overflow-y:auto;padding:28px 24px;display:grid;grid-template-columns:1fr 340px;gap:24px;align-items:start}
+.home-left{display:flex;flex-direction:column;gap:20px}
+.section-head{font-family:var(--fm);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.14em;background:var(--black);color:var(--yellow);padding:6px 14px;display:inline-block;margin-bottom:8px}
+.my-roadmaps{display:flex;flex-direction:column;gap:10px}
+.roadmap-card{background:var(--white);border:var(--bh);box-shadow:var(--s2);padding:16px 18px;cursor:pointer;transition:transform .1s,box-shadow .1s;display:flex;align-items:center;justify-content:space-between;gap:12px}
+.roadmap-card:hover{transform:translate(-2px,-2px);box-shadow:var(--s4)}
+.roadmap-card.discover-card{cursor:default;align-items:flex-start}
+.roadmap-card.loading{cursor:default;background:linear-gradient(90deg,var(--cream),#fff8d8,var(--cream));background-size:200% 100%;animation:loadingCard 1.4s linear infinite}
+.roadmap-card.loading:hover{transform:none;box-shadow:var(--s2)}
+.rc-left{flex:1}
+.rc-side{display:flex;flex-direction:column;align-items:flex-end;gap:10px;min-width:136px}
+.rc-title{font-family:var(--fm);font-size:12px;font-weight:700;letter-spacing:0.04em}
+.rc-meta{font-size:10px;color:#666;margin-top:3px}
+.rc-bar-wrap{margin-top:8px;height:8px;background:var(--muted);border:1.5px solid var(--black)}
+.rc-bar-fill{height:100%;background:var(--green);border-right:1.5px solid var(--black)}
+.rc-xp{font-family:var(--fm);font-size:11px;font-weight:700;background:var(--yellow);border:var(--b);padding:4px 10px;white-space:nowrap}
+.rc-xp.loading{background:var(--pink);animation:blink 1s infinite}
+.rc-loading{font-family:var(--fm);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#333;display:flex;align-items:center;gap:5px;margin-top:4px}
+.rc-loading-dot{width:6px;height:6px;background:var(--black);border-radius:50%;animation:dotPulse 1s infinite}
+.rc-loading-dot:nth-child(2){animation-delay:.15s}
+.rc-loading-dot:nth-child(3){animation-delay:.3s}
+.roadmap-actions{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.roadmap-action{font-family:var(--fm);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;padding:6px 9px;border:var(--b);box-shadow:var(--s1);background:var(--white);transition:transform .1s,box-shadow .1s;white-space:nowrap}
+.roadmap-action:hover{transform:translate(1px,1px)}
+.roadmap-action.copy{background:var(--sky)}
+.roadmap-action.delete{background:var(--pink)}
+.roadmap-action.open{background:var(--yellow)}
+.roadmap-action:disabled{opacity:.45;cursor:not-allowed;box-shadow:none;transform:none}
+.roadmap-rating-row{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:8px}
+.roadmap-star{width:24px;height:24px;border:var(--b);box-shadow:var(--s1);background:var(--white);font-family:var(--fm);font-size:10px;font-weight:700;line-height:1;cursor:pointer;transition:transform .1s,box-shadow .1s,background .1s}
+.roadmap-star:hover,.roadmap-star.active{background:var(--yellow)}
+.roadmap-rating-summary{font-family:var(--fm);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;background:var(--cream);border:1px solid var(--black);padding:4px 7px}
+.roadmap-submeta{font-size:10px;color:#555;margin-top:4px}
+.roadmap-genre-row{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.roadmap-genre{font-family:var(--fm);font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;padding:4px 7px;border:1px solid var(--black);background:var(--yellow)}
+.roadmap-tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.roadmap-tag{font-family:var(--fm);font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;padding:4px 7px;border:1px solid var(--black);background:var(--cream)}
+.empty-state{border:2px dashed var(--black);padding:32px;text-align:center;color:#888;font-size:12px;line-height:1.8}
+.new-btn{background:var(--green);border:var(--bh);box-shadow:var(--s2);font-family:var(--fm);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;padding:12px 24px;transition:transform .1s,box-shadow .1s;display:inline-flex;align-items:center;gap:8px}
+.new-btn:hover{transform:translate(2px,2px);box-shadow:var(--s1)}
+
+/* ═══════════════════════════════════
+  DISCOVER
+═══════════════════════════════════ */
+#s-discover{background:var(--cream);flex-direction:column;overflow:hidden}
+.discover-body{flex:1;overflow-y:auto;padding:28px 24px;display:flex;flex-direction:column;gap:18px}
+.discover-head{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap}
+.discover-note{font-size:12px;color:#555;line-height:1.7;max-width:720px}
+.discover-toolbar{display:flex;flex-direction:column;gap:10px;background:var(--white);border:var(--bh);box-shadow:var(--s2);padding:14px}
+.discover-toolbar-top{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.discover-search{flex:1;min-width:220px;border:var(--bh);box-shadow:var(--s1);background:var(--cream);padding:10px 12px;font-family:var(--fb);font-size:12px}
+.discover-filter{border:var(--bh);box-shadow:var(--s1);background:var(--white);padding:10px 12px;font-family:var(--fb);font-size:12px;min-width:180px}
+.discover-genre{border:var(--bh);box-shadow:var(--s1);background:var(--white);padding:10px 12px;font-family:var(--fb);font-size:12px;min-width:180px}
+.discover-tags{display:flex;gap:6px;flex-wrap:wrap}
+.discover-tag-pill{font-family:var(--fm);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;padding:6px 10px;border:var(--b);box-shadow:var(--s1);background:var(--white);transition:transform .1s,box-shadow .1s}
+.discover-tag-pill:hover,.discover-tag-pill.active{background:var(--yellow);transform:translate(1px,1px)}
+.discover-tag-count{font-size:8px;opacity:.7;margin-left:4px}
+.discover-list{display:flex;flex-direction:column;gap:12px}
+.discover-empty{border:2px dashed var(--black);padding:32px;text-align:center;color:#888;font-size:12px;line-height:1.8;background:var(--white)}
+
+/* PLAYGROUND */
+#s-playground{background:var(--black);flex-direction:column;overflow:hidden}
+.playground-body{flex:1;overflow-y:auto;padding:28px 24px;display:grid;grid-template-columns:minmax(320px,1.05fr) .95fr;gap:18px;align-items:start}
+.playground-panel{background:var(--cream);border:var(--bh);box-shadow:var(--s4);padding:18px;display:flex;flex-direction:column;gap:14px}
+.playground-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap}
+.playground-eyebrow{font-family:var(--fm);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;background:var(--yellow);border:var(--b);padding:5px 10px;display:inline-flex}
+.playground-title{font-family:var(--fm);font-size:20px;font-weight:700;line-height:1.15}
+.playground-sub{font-size:12px;color:#444;line-height:1.6}
+.playground-code{width:100%;min-height:340px;border:var(--bh);box-shadow:var(--s2);background:#0f172a;color:#e2e8f0;padding:14px;font-family:'IBM Plex Mono', monospace;font-size:12px;line-height:1.7;resize:vertical;white-space:pre;tab-size:2}
+.playground-toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.playground-select{border:var(--bh);box-shadow:var(--s1);background:var(--white);padding:10px 12px;font-family:var(--fb);font-size:12px;min-width:170px}
+.playground-btn{background:var(--yellow);border:var(--bh);box-shadow:var(--s2);font-family:var(--fm);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;padding:11px 14px;transition:transform .1s,box-shadow .1s}
+.playground-btn:hover{transform:translate(2px,2px);box-shadow:var(--s1)}
+.playground-btn.pink{background:var(--pink)}
+.playground-result{background:var(--white);border:var(--bh);box-shadow:var(--s2);padding:14px;min-height:340px;overflow:auto}
+.playground-result .empty-state{background:var(--white)}
+.playground-hint{font-size:11px;color:#555;line-height:1.6}
+.playground-sample{display:flex;flex-wrap:wrap;gap:6px}
+.playground-chip{font-family:var(--fm);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;padding:5px 9px;border:var(--b);background:var(--white);box-shadow:var(--s1);cursor:pointer}
+.playground-chip:hover{transform:translate(1px,1px);background:var(--sky)}
+
+/* LEADERBOARD */
+.leaderboard{background:var(--white);border:var(--bh);box-shadow:var(--s3)}
+.lb-header{background:var(--black);color:var(--yellow);font-family:var(--fm);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;padding:10px 16px;display:flex;align-items:center;gap:8px}
+.lb-dot{width:8px;height:8px;background:var(--green);border:1.5px solid var(--yellow);border-radius:50%}
+.lb-row{display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:2px solid var(--black);transition:background .1s}
+.lb-row:last-child{border-bottom:none}
+.lb-row:hover{background:var(--cream)}
+.lb-rank{font-family:var(--fm);font-size:11px;font-weight:700;width:24px;flex-shrink:0;text-align:center}
+.lb-rank.gold{color:var(--black);background:var(--yellow);padding:2px 5px}
+.lb-rank.silver{color:var(--black);background:var(--muted);padding:2px 5px}
+.lb-rank.bronze{color:var(--black);background:var(--orange);padding:2px 5px}
+.lb-name{flex:1;font-size:12px;font-weight:700}
+.lb-xp{font-family:var(--fm);font-size:10px;font-weight:700;background:var(--yellow);border:var(--b);padding:2px 8px}
+.lb-me{background:var(--cream);border-left:4px solid var(--yellow)}
+
+/* ═══════════════════════════════════
+   SCREEN 2: TASK INPUT
+═══════════════════════════════════ */
+#s-task{background:var(--black);flex-direction:column;align-items:center;justify-content:center}
+.task-inner{max-width:560px;width:100%;padding:40px;display:flex;flex-direction:column;gap:24px}
+.task-title{font-family:var(--fm);font-size:32px;font-weight:700;color:var(--yellow);line-height:1.1}
+.task-sub{font-size:12px;color:var(--muted);line-height:1.7}
+.task-card{background:var(--cream);border:var(--bh);box-shadow:var(--s4);padding:28px;display:flex;flex-direction:column;gap:16px}
+.task-examples{display:flex;flex-wrap:wrap;gap:6px}
+.ex-chip{background:var(--white);border:var(--b);font-family:var(--fm);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;padding:5px 10px;cursor:pointer;transition:background .1s,transform .1s}
+.ex-chip:hover{background:var(--sky);transform:translate(1px,1px)}
+.task-textarea{width:100%;border:var(--bh);box-shadow:var(--s2);background:var(--white);padding:14px;font-family:var(--fb);font-size:13px;line-height:1.6;resize:none;height:100px;transition:box-shadow .1s,transform .1s}
+.task-textarea:focus{box-shadow:var(--s4);transform:translate(-1px,-1px)}
+.task-row{display:flex;gap:10px}
+.btn-back{background:var(--white);border:var(--bh);box-shadow:var(--s1);font-family:var(--fm);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;padding:12px 20px;transition:transform .1s,box-shadow .1s}
+.btn-back:hover{transform:translate(2px,2px);box-shadow:none}
+.generating-overlay{position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:100;display:none;align-items:center;justify-content:center;padding:24px}
+.generating-overlay.show{display:flex}
+.gen-card{width:min(760px,100%);background:var(--cream);border:var(--bh);box-shadow:var(--s4);padding:28px;display:flex;flex-direction:column;gap:18px;position:relative;overflow:hidden}
+.gen-card::after{content:'';position:absolute;inset:auto -20% -30% auto;width:280px;height:280px;background:radial-gradient(circle, rgba(253,224,71,.22), transparent 70%);pointer-events:none}
+.gen-eyebrow{font-family:var(--fm);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.14em;background:var(--black);color:var(--yellow);padding:5px 10px;display:inline-flex;align-self:flex-start}
+.gen-text{font-family:var(--fm);font-size:26px;font-weight:700;color:var(--black);letter-spacing:-0.03em;line-height:1.05}
+.gen-sub{font-size:12px;color:#444;letter-spacing:0.04em;line-height:1.6}
+.gen-preview{display:grid;grid-template-columns:1.15fr .85fr;gap:18px;align-items:start}
+.gen-plan-box{background:var(--white);border:var(--bh);box-shadow:var(--s2);padding:16px;display:flex;flex-direction:column;gap:12px}
+.gen-plan-title{font-family:var(--fm);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.12em}
+.gen-steps{display:flex;flex-direction:column;gap:8px}
+.gen-step{border:var(--b);padding:10px 12px;background:var(--cream);font-size:12px;display:flex;align-items:center;justify-content:space-between;gap:10px;opacity:.55;transition:transform .2s,opacity .2s,background .2s}
+.gen-step strong{font-family:var(--fm);font-size:10px;text-transform:uppercase;letter-spacing:0.08em}
+.gen-step.active{opacity:1;background:var(--yellow);transform:translateX(4px)}
+.gen-step.done{opacity:.9;background:#dff8e8}
+.gen-skeleton{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.gen-skeleton-card{background:var(--white);border:var(--bh);box-shadow:var(--s1);padding:12px;min-height:86px;display:flex;flex-direction:column;gap:8px}
+.gen-skel-line{height:10px;background:linear-gradient(90deg,#e8e2d5,#f6f1e8 50%,#e8e2d5);background-size:200% 100%;animation:shimmer 1.2s linear infinite}
+.gen-skel-line.short{width:62%}
+.gen-skel-line.med{width:78%}
+.gen-skel-line.long{width:94%}
+@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+.gen-bar{width:100%;height:12px;background:#222;border:var(--b);overflow:hidden}
+.gen-fill{height:100%;background:var(--yellow);width:0%;animation:genfill 2s ease-in-out forwards}
+.gen-footer{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.gen-time{font-family:var(--fm);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;background:var(--pink);border:var(--b);padding:5px 10px}
+@keyframes genfill{0%{width:0%}60%{width:70%}90%{width:90%}100%{width:90%}}
+@keyframes loadingCard{0%{background-position:200% 0}100%{background-position:-200% 0}}
+@keyframes dotPulse{0%,100%{opacity:.25;transform:scale(.85)}50%{opacity:1;transform:scale(1)}}
+
+/* ═══════════════════════════════════
+   SCREEN 3: ROADMAP + CHAT
+═══════════════════════════════════ */
+#s-roadmap{flex-direction:row;overflow:hidden}
+
+/* HUD */
+.left-panel{flex:1 1 62%;background:var(--cream);display:flex;flex-direction:column;border-right:var(--bh);overflow:hidden}
+.hud{height:60px;background:var(--cream);border-bottom:var(--bh);display:flex;align-items:center;gap:12px;padding:0 16px;flex-shrink:0}
+.xp-badge{background:var(--yellow);border:var(--bh);box-shadow:var(--s2);font-family:var(--fm);font-size:11px;font-weight:700;letter-spacing:0.06em;padding:6px 13px;display:flex;align-items:center;gap:5px;flex-shrink:0}
+.prog-wrap{flex:1;display:flex;flex-direction:column;gap:3px}
+.prog-label{font-family:var(--fm);font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em}
+.prog-track{height:11px;background:var(--white);border:var(--b);box-shadow:var(--s1);overflow:hidden}
+.prog-fill{height:100%;background:var(--green);border-right:2px solid var(--black);transition:width .6s cubic-bezier(.2,0,0,1)}
+.hud-btns{display:flex;gap:7px;flex-shrink:0}
+.hud-btn{font-family:var(--fm);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;padding:6px 11px;border:var(--bh);box-shadow:var(--s1);transition:transform .1s,box-shadow .1s}
+.hud-btn:hover{transform:translate(2px,2px);box-shadow:none}
+.hud-btn.sky{background:var(--sky)}
+.hud-btn.pink{background:var(--pink)}
+.hud-btn.yellow{background:var(--yellow)}
+
+/* ROADMAP */
+.roadmap-track{position:relative;display:flex;flex-direction:column;align-items:center;padding-bottom:60px}
+.spine{position:absolute;left:50%;top:0;bottom:0;width:4px;background:var(--black);transform:translateX(-50%);z-index:0}
+.sec-label{position:relative;z-index:2;margin:18px 0 10px;display:flex;justify-content:center}
+.sec-pill{background:var(--black);color:var(--yellow);font-family:var(--fm);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.14em;padding:5px 18px}
+.node-row{width:100%;position:relative;z-index:1;display:flex;align-items:center;justify-content:center}
+.node-row.l{justify-content:flex-start;padding-left:8%}
+.node-row.r{justify-content:flex-end;padding-right:8%}
+.node-row.c{justify-content:center}
+.node-row.l::after,.node-row.r::after{content:'';position:absolute;top:50%;height:3px;background:var(--black);z-index:0;transform:translateY(-50%)}
+.node-row.l::after{left:calc(8% + 152px);right:50%}
+.node-row.r::after{right:calc(8% + 152px);left:50%}
+.spacer{height:40px}
+
+/* NODE */
+.node{width:152px;border:var(--bh);box-shadow:var(--s3);cursor:pointer;position:relative;z-index:2;background:var(--white);transition:transform .1s,box-shadow .1s;user-select:none;animation:nodein .35s both}
+@keyframes nodein{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+.node:hover{transform:translate(-2px,-2px);box-shadow:var(--s4)}
+.node:active{transform:translate(3px,3px);box-shadow:var(--s1)}
+.node.done{background:var(--green)}
+.node.active{background:var(--yellow);animation:nodein .35s both,pulse 1.4s .35s infinite}
+.node.locked{background:var(--muted);opacity:.6;cursor:not-allowed}
+.node.locked:hover{transform:none;box-shadow:var(--s3)}
+.node.boss{background:var(--pink);width:178px}
+.node.bonus{background:var(--sky);width:134px}
+@keyframes pulse{0%,100%{box-shadow:var(--s3)}50%{box-shadow:var(--s4)}}
+.node-inner{padding:11px 12px 12px}
+.node-icon{font-size:18px;line-height:1;display:block;margin-bottom:5px}
+.node-title{font-family:var(--fm);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;line-height:1.3}
+.node-sub{font-size:9px;color:#444;margin-top:2px}
+.node-xp{display:inline-block;margin-top:6px;background:var(--black);color:var(--yellow);font-family:var(--fm);font-size:9px;font-weight:700;padding:2px 6px}
+.node-check{position:absolute;top:-8px;right:-8px;width:20px;height:20px;background:var(--black);color:var(--green);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;z-index:3;border:2px solid var(--black)}
+.bg-stamp{position:absolute;bottom:16px;right:16px;font-family:var(--fm);font-size:56px;font-weight:700;color:var(--black);opacity:.04;letter-spacing:-3px;pointer-events:none;user-select:none}
+
+/* RIGHT / CHAT */
+.right-panel{flex:0 0 38%;background:var(--white);display:flex;flex-direction:column;overflow:hidden}
+.chat-header{background:var(--black);color:var(--yellow);font-family:var(--fm);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;height:60px;padding:0 16px;display:flex;align-items:center;gap:10px;border-bottom:var(--bh);flex-shrink:0}
+.chat-dot{width:8px;height:8px;background:var(--green);border:1.5px solid var(--yellow);border-radius:50%;animation:blink 1.6s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
+.chat-title-info{margin-left:auto;font-size:8px;opacity:.6;letter-spacing:0.08em}
+.chat-msgs{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px;scrollbar-width:thin;scrollbar-color:var(--black) var(--muted)}
+.msg{display:flex;flex-direction:column;gap:3px;animation:msgin .2s ease-out both}
+@keyframes msgin{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+.msg.user{align-items:flex-end}.msg.ai{align-items:flex-start}
+.msg-label{font-family:var(--fm);font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#999;padding:0 3px}
+.msg-bubble{max-width:88%;font-size:11px;line-height:1.65;padding:9px 12px;border:var(--bh)}
+.msg.user .msg-bubble{background:var(--yellow);box-shadow:var(--s1)}
+.msg.ai .msg-bubble{background:var(--cream);box-shadow:var(--s1)}
+.msg-bubble h3{font-family:var(--fm);font-size:12px;font-weight:700;line-height:1.3;margin-bottom:4px}
+.msg-bubble h4{font-family:var(--fm);font-size:10px;font-weight:700;line-height:1.35;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px}
+.msg-bubble p{margin:0 0 6px 0}
+.msg-bubble ul{margin:0;padding-left:18px}
+.msg-bubble li{margin:0 0 4px 0}
+.msg-bubble code{font-family:var(--fm);font-size:10px;background:var(--yellow);border:1px solid var(--black);padding:0 4px}
+.typing-indicator{display:none;align-items:center;gap:3px;padding:4px 0}
+.typing-indicator.show{display:flex}
+.t-dot{width:6px;height:6px;background:var(--black);border-radius:50%;animation:tdot .8s infinite}
+.t-dot:nth-child(2){animation-delay:.15s}
+.t-dot:nth-child(3){animation-delay:.3s}
+@keyframes tdot{0%,100%{opacity:.2}50%{opacity:1}}
+.prompt-bar{flex-shrink:0;border-top:var(--bh);background:var(--white);padding:11px 12px;display:flex;flex-direction:column;gap:8px}
+.chips{display:flex;gap:5px;flex-wrap:wrap}
+.chip{font-family:var(--fm);font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;padding:4px 8px;border:var(--b);background:var(--white);cursor:pointer;transition:background .1s,transform .1s}
+.chip:hover{background:var(--sky);transform:translate(1px,1px)}
+.prompt-ctx{font-family:var(--fm);font-size:7px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#bbb}
+.prompt-row{display:flex;gap:7px;align-items:flex-end}
+.prompt-input{flex:1;border:var(--bh);box-shadow:var(--s1);background:var(--cream);padding:9px 11px;font-family:var(--fb);font-size:11px;line-height:1.5;resize:none;height:42px;transition:box-shadow .1s,transform .1s}
+.prompt-input:focus{box-shadow:var(--s3);transform:translate(-1px,-1px)}
+.send-btn{background:var(--yellow);border:var(--bh);box-shadow:var(--s1);font-family:var(--fm);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;padding:0 14px;height:42px;transition:transform .1s,box-shadow .1s;white-space:nowrap}
+.send-btn:hover{transform:translate(2px,2px);box-shadow:none}
+
+/* ═══════════════════════════════════
+   MODAL — Play or Learn
+═══════════════════════════════════ */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:200;display:none;align-items:center;justify-content:center}
+.modal-overlay.show{display:flex}
+.modal{background:var(--cream);border:var(--bh);box-shadow:var(--s4);padding:32px;max-width:440px;width:90%;display:flex;flex-direction:column;gap:20px}
+.modal-title{font-family:var(--fm);font-size:20px;font-weight:700;letter-spacing:-0.5px;line-height:1.2}
+.modal-node-name{font-family:var(--fm);font-size:12px;font-weight:700;background:var(--yellow);border:var(--b);padding:5px 12px;display:inline-block;margin-bottom:4px}
+.modal-desc{font-size:12px;color:#444;line-height:1.7}
+.modal-btns{display:flex;gap:10px}
+.modal-btn{flex:1;font-family:var(--fm);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;padding:14px 16px;border:var(--bh);box-shadow:var(--s2);transition:transform .1s,box-shadow .1s;cursor:pointer}
+.modal-btn:hover{transform:translate(2px,2px);box-shadow:var(--s1)}
+.modal-btn.play{background:var(--green)}
+.modal-btn.learn{background:var(--sky)}
+.modal-btn.cancel{background:var(--white);flex:0;padding:14px 20px}
+
+/* QNA modal */
+.qna-modal{max-width:520px;max-height:80vh;overflow-y:auto}
+.qna-question{font-family:var(--fm);font-size:13px;font-weight:700;line-height:1.4;margin-bottom:16px}
+.qna-options{display:flex;flex-direction:column;gap:8px}
+.qna-opt{background:var(--white);border:var(--bh);box-shadow:var(--s1);font-family:var(--fb);font-size:12px;padding:11px 14px;cursor:pointer;transition:background .1s,transform .1s,box-shadow .1s;text-align:left}
+.qna-opt:hover{background:var(--sky);transform:translate(1px,1px)}
+.qna-opt.correct{background:var(--green)!important;box-shadow:none}
+.qna-opt.wrong{background:var(--pink)!important;box-shadow:none}
+.qna-feedback{font-family:var(--fm);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;padding:8px 12px;border:var(--b);margin-top:8px;display:none}
+.qna-feedback.show{display:block}
+.qna-feedback.ok{background:var(--green)}
+.qna-feedback.bad{background:var(--pink)}
+
+/* TOAST */
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(60px);background:var(--black);color:var(--yellow);font-family:var(--fm);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;padding:10px 20px;border:2px solid var(--yellow);box-shadow:4px 4px 0 var(--yellow);z-index:999;transition:transform .2s cubic-bezier(.2,0,0,1),opacity .2s;opacity:0;white-space:nowrap}
+.toast.show{transform:translateX(-50%) translateY(0);opacity:1}
+
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+
+<!-- ═══════════ SCREEN 0: API KEY ═══════════ -->
+<div id="s-apikey" class="screen active">
+  <div class="apikey-inner">
+    <div class="logo-big">ZEBRI</div>
+    <div class="logo-sub">AI Learning Roadmap</div>
+
+    <div class="api-card">
+      <div class="api-card-title">🔑 Connect NVIDIA NIM</div>
+        <p class="api-card-note">Disclaimer: Your API key is hashed and stored securely. <br> Use the Free models listed below to avoid any risks.</p>
+      <p class="api-card-note">Get your free API key at <a href="https://build.nvidia.com" target="_blank">build.nvidia.com</a>. Keys start with <strong>nvapi-</strong></p>
+
+      <div>
+        <div class="field-label">API Key</div>
+        <input id="api-key-input" class="inp" type="password" placeholder="nvapi-••••••••••••••••••••••">
+      </div>
+
+      <div>
+        <div class="field-label">Model</div>
+        <select id="model-select" class="model-select">
+          <option value="moonshotai/kimi-k2-instruct-0905">moonshotai/kimi-k2-instruct-0905</option>
+          <option value="z-ai/glm4.7">z-ai/glm4.7</option>
+          <option value="minimaxai/minimax-m2.7">minimaxai/minimax-m2.7</option>
+          <option value="mistralai/mixtral-8x22b-instruct-v0.1">mistralai/mixtral-8x22b-instruct-v0.1</option>
+          <option value="google/gemma-3-27b-it">google/gemma-3-27b-it</option>
+        </select>
+      </div>
+
+      <div>
+        <div class="field-label">Your Name</div>
+        <input id="user-name-input" class="inp" type="text" placeholder="e.g. Kit">
+      </div>
+
+      <div id="api-error" class="api-error">Invalid key or connection failed. Check your nvapi- key.</div>
+
+      <button class="btn-primary" onclick="validateApiKey()">Connect & Start →</button>
+    </div>
+      <div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ SCREEN 1: HOME ═══════════ -->
+<div id="s-home" class="screen">
+  <div class="home-header">
+    <div class="home-logo">ZEBRI</div>
+    <div class="home-header-right">
+      <span id="home-user-badge" style="font-family:var(--fm);font-size:10px;font-weight:700;color:var(--muted);letter-spacing:0.06em;text-transform:uppercase"></span>
+      <button class="hbtn" onclick="goDiscover()">🌍 Discover</button>
+      <button class="hbtn" onclick="goToTaskScreen()">+ New Roadmap</button>
+      <button class="hbtn pink" onclick="logout()">↩ Logout</button>
+    </div>
+  </div>
+  <div class="home-body">
+    <div class="home-left">
+      <div>
+        <div class="section-head">★ My Roadmaps</div>
+        <div id="my-roadmaps" class="my-roadmaps">
+          <div class="empty-state">No roadmaps yet.<br>Create your first one to get started!</div>
+        </div>
+      </div>
+      <button class="new-btn" onclick="goToTaskScreen()">★ Create New Roadmap</button>
+    </div>
+
+    <div>
+      <div class="section-head">🏆 Leaderboard</div>
+      <div class="leaderboard">
+        <div class="lb-header"><div class="lb-dot"></div> Global Rankings</div>
+        <div id="leaderboard-list"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ SCREEN 4: DISCOVER ═══════════ -->
+<div id="s-discover" class="screen">
+  <div class="home-header">
+    <div class="home-logo">ZEBRI</div>
+    <div class="home-header-right">
+      <span id="discover-user-badge" style="font-family:var(--fm);font-size:10px;font-weight:700;color:var(--muted);letter-spacing:0.06em;text-transform:uppercase"></span>
+      <button class="hbtn" onclick="goHome()">🏠 Home</button>
+      <button class="hbtn" onclick="goToTaskScreen()">+ New Roadmap</button>
+      <button class="hbtn pink" onclick="logout()">↩ Logout</button>
+    </div>
+  </div>
+  <div class="discover-body">
+    <div class="discover-head">
+      <div>
+        <div class="section-head">🌍 Discover</div>
+        <p class="discover-note">Browse roadmaps created by the community. Rate anything you like, copy a roadmap into your own collection, or delete your own entries when you no longer need them.</p>
+      </div>
+      <button class="new-btn" onclick="goDiscover()">↻ Refresh Discover</button>
+    </div>
+    <div class="discover-toolbar">
+      <div class="discover-toolbar-top">
+        <input id="discover-search" class="discover-search" type="search" placeholder="Search roadmaps, tags, or authors" oninput="setDiscoverSearch(this.value)">
+        <select id="discover-filter" class="discover-filter" onchange="setDiscoverFilter(this.value)">
+          <option value="all">All roadmaps</option>
+          <option value="top">Top rated</option>
+          <option value="rated">Rated</option>
+          <option value="popular">Popular</option>
+          <option value="mine">My roadmaps</option>
+        </select>
+        <select id="discover-genre" class="discover-genre" onchange="setDiscoverGenre(this.value)">
+          <option value="all">All genres</option>
+          <option value="General">General</option>
+          <option value="Frontend">Frontend</option>
+          <option value="Backend/API">Backend/API</option>
+          <option value="Full Stack">Full Stack</option>
+          <option value="Python">Python</option>
+          <option value="Data & SQL">Data & SQL</option>
+          <option value="Machine Learning">Machine Learning</option>
+          <option value="DevOps">DevOps</option>
+          <option value="Testing">Testing</option>
+          <option value="Security">Security</option>
+          <option value="Mobile">Mobile</option>
+          <option value="Algorithms">Algorithms</option>
+          <option value="Data Science">Data Science</option>
+        </select>
+      </div>
+      <div id="discover-tags" class="discover-tags"></div>
+    </div>
+    <div id="discover-roadmaps" class="discover-list">
+      <div class="discover-empty">Loading discover feed...</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ SCREEN 2: TASK INPUT ═══════════ -->
+<div id="s-task" class="screen">
+  <div class="task-inner">
+    <div>
+      <div class="task-title">What do you want<br>to master?</div>
+      <p class="task-sub" style="margin-top:10px">Describe any skill or goal. Zebri will generate a personalized 10-step roadmap powered by NVIDIA NIM.</p>
+    </div>
+
+    <div class="task-card">
+      <div>
+        <div class="field-label">Try an example</div>
+        <div class="task-examples">
+          <div class="ex-chip" onclick="setExample('Learn Python from scratch')">Python Basics</div>
+          <div class="ex-chip" onclick="setExample('Master React and modern frontend development')">React Dev</div>
+          <div class="ex-chip" onclick="setExample('Learn machine learning fundamentals')">ML Fundamentals</div>
+          <div class="ex-chip" onclick="setExample('Build a full stack web application')">Full Stack</div>
+          <div class="ex-chip" onclick="setExample('Learn data structures and algorithms for coding interviews')">DSA / Interviews</div>
+          <div class="ex-chip" onclick="setExample('Study for PMP project management certification')">PMP Cert</div>
+        </div>
+      </div>
+
+      <div>
+        <div class="field-label">Your goal</div>
+        <textarea id="task-input" class="task-textarea" placeholder="e.g. Learn how to build REST APIs with Node.js and Express..."></textarea>
+      </div>
+
+      <div class="task-row">
+        <button class="btn-back" onclick="goHome()">← Home</button>
+        <button class="btn-primary" style="flex:1" onclick="generateRoadmap()">Generate Roadmap →</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ SCREEN 3: ROADMAP ═══════════ -->
+<div id="s-roadmap" class="screen">
+  <!-- LEFT -->
+  <div class="left-panel">
+    <div class="hud">
+      <div class="xp-badge">★ <span id="hud-xp">0 XP</span></div>
+      <div class="prog-wrap">
+        <div class="prog-label" id="prog-label">Level 1 · 0% complete</div>
+        <div class="prog-track"><div class="prog-fill" id="prog-fill" style="width:0%"></div></div>
+      </div>
+      <div class="hud-btns">
+        <button class="hud-btn sky" onclick="showProfile()">👤 Profile</button>
+        <button class="hud-btn yellow" onclick="goDiscover()">🌍 Discover</button>
+        <button class="hud-btn sky" id="hud-playground-btn" onclick="openPlayground()" style="display:none">🧪 Playground</button>
+        <button class="hud-btn yellow" onclick="goHome()">🏠 Home</button>
+        <button class="hud-btn pink" onclick="logout()">↩ Out</button>
+      </div>
+    </div>
+    <div class="roadmap-scroll">
+      <div class="roadmap-track" id="roadmap-track">
+        <div class="spine"></div>
+      </div>
+    </div>
+    <div class="bg-stamp">ZEBRI</div>
+  </div>
+  <!-- RIGHT -->
+  <div class="right-panel">
+    <div class="chat-header">
+      <div class="chat-dot"></div>
+      Zebri AI Guide
+      <div class="chat-title-info" id="chat-model-label">NIM</div>
+    </div>
+    <div class="chat-msgs" id="chat-msgs"></div>
+    <div style="padding:6px 14px;display:flex;align-items:center;height:28px;">
+      <div class="typing-indicator" id="typing">
+        <div class="t-dot"></div><div class="t-dot"></div><div class="t-dot"></div>
+        <span style="font-size:9px;color:#888;margin-left:4px;font-family:var(--fm);letter-spacing:0.06em;text-transform:uppercase">Zebri is thinking...</span>
+      </div>
+    </div>
+    <div class="prompt-bar">
+      <div class="chips" id="quick-chips">
+        <div class="chip" onclick="quickChip('What should I do next?')">Next step?</div>
+        <div class="chip" onclick="quickChip('Explain the current node in detail')">Explain node</div>
+        <div class="chip" onclick="quickChip('How much XP do I have and what level am I?')">My XP</div>
+        <div class="chip" onclick="quickChip('Quiz me on what I just learned')">Quiz me!</div>
+      </div>
+      <div class="prompt-ctx" id="prompt-ctx">Context: Zebri AI</div>
+      <div class="prompt-row">
+        <textarea id="chat-input" class="prompt-input" placeholder="Ask Zebri anything..." onkeydown="handleChatKey(event)"></textarea>
+        <button class="send-btn" onclick="sendChat()">Send →</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ GENERATING OVERLAY ═══════════ -->
+<div class="generating-overlay" id="gen-overlay">
+  <div class="gen-card">
+    <div class="gen-eyebrow">AI Thinking / Planning Preview</div>
+    <div class="gen-text" id="gen-text">⚡ Planning your roadmap...</div>
+    <div class="gen-sub" id="gen-sub">It should take at least 30 seconds while Zebri maps the best learning path for you.</div>
+    <div class="gen-preview">
+      <div class="gen-plan-box">
+        <div class="gen-plan-title">What Zebri is doing now</div>
+        <div class="gen-steps" id="gen-steps">
+          <div class="gen-step active" data-step="0"><strong>1. Analyze</strong><span>Understand your goal and skill level</span></div>
+          <div class="gen-step" data-step="1"><strong>2. Plan</strong><span>Choose the right sequence of topics</span></div>
+          <div class="gen-step" data-step="2"><strong>3. Draft</strong><span>Build checkpoints, quizzes, and XP</span></div>
+          <div class="gen-step" data-step="3"><strong>4. Refine</strong><span>Polish the final learning roadmap</span></div>
+        </div>
+      </div>
+      <div class="gen-skeleton">
+        <div class="gen-skeleton-card">
+          <div class="gen-skel-line long"></div>
+          <div class="gen-skel-line med"></div>
+          <div class="gen-skel-line short"></div>
+        </div>
+        <div class="gen-skeleton-card">
+          <div class="gen-skel-line med"></div>
+          <div class="gen-skel-line long"></div>
+          <div class="gen-skel-line short"></div>
+        </div>
+        <div class="gen-skeleton-card">
+          <div class="gen-skel-line short"></div>
+          <div class="gen-skel-line long"></div>
+          <div class="gen-skel-line med"></div>
+        </div>
+        <div class="gen-skeleton-card">
+          <div class="gen-skel-line long"></div>
+          <div class="gen-skel-line short"></div>
+          <div class="gen-skel-line med"></div>
+        </div>
+      </div>
+    </div>
+    <div class="gen-footer">
+      <div class="gen-time">Estimated wait: 30s+</div>
+      <div class="gen-bar"><div class="gen-fill" id="gen-fill"></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ MODAL: PLAY OR LEARN ═══════════ -->
+<div class="modal-overlay" id="modal-pol">
+  <div class="modal">
+    <div class="modal-node-name" id="modal-node-name">Node</div>
+    <div class="modal-title">How do you want<br>to tackle this?</div>
+    <div class="modal-desc" id="modal-node-desc">Choose your learning mode.</div>
+    <div class="modal-btns">
+      <button class="modal-btn play" onclick="startPlay()">▶ Play Quiz</button>
+      <button class="modal-btn learn" onclick="startLearn()">📖 Learn Mode</button>
+      <button class="modal-btn learn" id="modal-playground-btn" onclick="openPlayground()" style="display:none">🧪 Playground</button>
+      <button class="modal-btn cancel" onclick="closeModal('modal-pol')">✕</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ MODAL: Q&A ═══════════ -->
+<div class="modal-overlay" id="modal-qna">
+  <div class="modal qna-modal">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px">
+      <div class="modal-node-name" id="qna-node-name">Quiz</div>
+      <div style="font-family:var(--fm);font-size:10px;font-weight:700;color:#888;" id="qna-progress">Q 1/3</div>
+    </div>
+    <div class="qna-question" id="qna-question">Loading question...</div>
+    <div class="qna-options" id="qna-options"></div>
+    <div class="qna-feedback" id="qna-feedback"></div>
+    <div style="display:flex;gap:8px;margin-top:16px">
+      <button class="modal-btn" id="qna-next-btn" style="background:var(--yellow);display:none" onclick="nextQuestion()">Next →</button>
+      <button class="modal-btn cancel" onclick="closeModal('modal-qna')">✕ Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ SCREEN 4: PLAYGROUND ═══════════ -->
+<div id="s-playground" class="screen">
+  <div class="home-header">
+    <div class="home-logo">ZEBRI</div>
+    <div class="home-header-right">
+      <span id="playground-user-badge" style="font-family:var(--fm);font-size:10px;font-weight:700;color:var(--muted);letter-spacing:0.06em;text-transform:uppercase"></span>
+      <button class="hbtn" onclick="goHome()">🏠 Home</button>
+      <button class="hbtn" onclick="goDiscover()">🌍 Discover</button>
+      <button class="hbtn pink" onclick="closePlayground()">↩ Back</button>
+    </div>
+  </div>
+  <div class="playground-body">
+    <div class="playground-panel">
+      <div class="playground-head">
+        <div>
+          <div class="playground-eyebrow">🧪 Technical Playground</div>
+          <div class="playground-title" id="playground-title">Code and let Zebri review it</div>
+        </div>
+        <div class="playground-hint" id="playground-context">Available only for programming-related roadmaps.</div>
+      </div>
+
+      <div class="playground-toolbar">
+        <select id="playground-language" class="playground-select" onchange="setPlaygroundTemplate(this.value)">
+          <option value="javascript">JavaScript</option>
+          <option value="typescript">TypeScript</option>
+          <option value="python">Python</option>
+          <option value="sql">SQL</option>
+          <option value="html">HTML/CSS</option>
+        </select>
+        <button class="playground-btn" onclick="checkPlaygroundCode()">Run AI Check</button>
+        <button class="playground-btn pink" onclick="fillPlaygroundSample()">Load Sample</button>
+      </div>
+
+      <textarea id="playground-code" class="playground-code" spellcheck="false" placeholder="Write or paste code here..."></textarea>
+
+      <div class="playground-sample">
+        <button class="playground-chip" onclick="fillPlaygroundSample('javascript')">JS sample</button>
+        <button class="playground-chip" onclick="fillPlaygroundSample('python')">Python sample</button>
+        <button class="playground-chip" onclick="fillPlaygroundSample('sql')">SQL sample</button>
+        <button class="playground-chip" onclick="fillPlaygroundSample('typescript')">TS sample</button>
+      </div>
+    </div>
+
+    <div class="playground-panel">
+      <div class="playground-head">
+        <div>
+          <div class="playground-eyebrow">AI Review</div>
+          <div class="playground-title">What Zebri thinks</div>
+        </div>
+      </div>
+      <div class="playground-result" id="playground-result">
+        <div class="empty-state">Run an AI check to get code review feedback.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
