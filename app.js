@@ -22,18 +22,28 @@ const STATE = {
   playgroundCode: '',
   playgroundLanguage: 'javascript',
   playgroundResult: '',
+  currentPlaygroundChallenge: null,
   playgroundBusy: false,
   chatHistory: [],
   leaderboard: [],
   activeNodeIndex: -1,
   currentQA: [],
   currentQIndex: 0,
+  currentQuizCorrectCount: 0,
   currentNodeForModal: -1,
+  importedSourceName: '',
+  importedSourceText: '',
+  importedSourceSummary: '',
+  pomodoroSession: null,
+  pomodoroToken: '',
+  pomodoroTrackerUrl: '',
+  pomodoroBusy: false,
 };
 
 const NIM_PROXY = '/api/nim/chat';
 let generationPreviewTimer = null;
 let generationPreviewStep = 0;
+let chatHistorySaveTimer = null;
 
 // ═══════════════════════════════════
 //  SCREEN UTILS
@@ -74,10 +84,28 @@ function isProgrammingRoadmap() {
 
 function updatePlaygroundAvailability() {
   const visible = isProgrammingRoadmap();
-  const buttonIds = ['hud-playground-btn', 'modal-playground-btn'];
+  const buttonIds = ['modal-playground-btn'];
   buttonIds.forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = visible ? '' : 'none';
+  });
+}
+
+function scheduleChatHistorySave() {
+  if (!STATE.currentRoadmapId) return;
+  if (chatHistorySaveTimer) clearTimeout(chatHistorySaveTimer);
+  chatHistorySaveTimer = setTimeout(() => {
+    chatHistorySaveTimer = null;
+    void saveCurrentRoadmap();
+  }, 400);
+}
+
+function renderChatHistory() {
+  const container = document.getElementById('chat-msgs');
+  if (!container) return;
+  container.innerHTML = '';
+  (STATE.chatHistory || []).forEach(entry => {
+    addChatMsg(entry.role, entry.content, Boolean(entry.rawHtml), false);
   });
 }
 
@@ -158,8 +186,19 @@ function openPlayground() {
 
   syncUserBadges();
   updatePlaygroundAvailability();
-  document.getElementById('playground-title').textContent = `${STATE.task || 'Technical Playground'} · ${STATE.currentRoadmapGenre || 'Programming'}`;
-  document.getElementById('playground-context').textContent = `AI checks code for ${STATE.currentRoadmapGenre || 'programming'} roadmaps.`;
+  const node = STATE.roadmap?.[STATE.currentNodeForModal];
+  const challenge = node?.playground || null;
+  STATE.currentPlaygroundChallenge = challenge;
+  document.getElementById('playground-title').innerHTML = node
+    ? `${formatRichText(node.title || 'Technical Playground')} · ${escapeHtml(STATE.currentRoadmapGenre || 'Programming')}`
+    : `${formatRichText(STATE.task || 'Technical Playground')} · ${escapeHtml(STATE.currentRoadmapGenre || 'Programming')}`;
+  document.getElementById('playground-context').innerHTML = challenge?.prompt
+    ? formatRichText(challenge.prompt)
+    : formatRichText(`AI checks code for ${STATE.currentRoadmapGenre || 'programming'} roadmaps.`);
+  const problemEl = document.getElementById('playground-problem');
+  if (problemEl) {
+    problemEl.innerHTML = formatPlaygroundGuide(challenge);
+  }
   showScreen('s-playground');
 
   if (!STATE.playgroundCode) {
@@ -196,16 +235,31 @@ async function checkPlaygroundCode() {
   setPlaygroundResult('<div class="empty-state">Zebri is checking your code...</div>');
 
   try {
+    const sourceNode = STATE.roadmap?.[STATE.currentNodeForModal];
+    const requiresExecution = sourceNode && sourceNode.mode === 'playground';
+    const challengeText = sourceNode?.playground?.prompt || sourceNode?.playground?.acceptance || '';
     const reply = await nimChat([
       {
         role: 'system',
-        content: `You are Zebri, a strict but helpful code reviewer. Review code for correctness, runtime bugs, edge cases, style, and security only when relevant. Reply in short sections: heading, short summary, bullet list of issues, and a corrected snippet if needed. Be concise.`,
+        content: requiresExecution
+          ? `You are Zebri, a strict but helpful code reviewer. Decide whether the submitted code is good enough to pass this roadmap step. The step challenge is: ${challengeText || 'complete the coding task correctly.'} Respond as JSON with keys passed (boolean), heading (string), summary (string), issues (array of strings), and fix (string). Be concise and only include JSON.`
+          : `You are Zebri, a strict but helpful code reviewer. Review code for correctness, runtime bugs, edge cases, style, and security only when relevant. Reply in short sections: heading, short summary, bullet list of issues, and a corrected snippet if needed. Be concise.`,
       },
       {
         role: 'user',
-        content: `Roadmap: ${STATE.task}\nGenre: ${STATE.currentRoadmapGenre || 'Programming'}\nLanguage: ${language}\n\nCheck this code:\n\n${code}`,
+        content: `Roadmap: ${STATE.task}\nGenre: ${STATE.currentRoadmapGenre || 'Programming'}\nLanguage: ${language}\n${requiresExecution ? `Challenge: ${challengeText || 'Complete the step using code execution.'}` : ''}\n\nCheck this code:\n\n${code}`,
       },
     ], 900, false);
+
+    if (requiresExecution) {
+      const parsed = parsePlaygroundReview(reply);
+      setPlaygroundResult(formatPlaygroundReview(parsed, reply));
+      if (parsed.passed) {
+        completeNode(STATE.currentNodeForModal);
+        toast('Playground step passed! XP earned!', 3000);
+      }
+      return;
+    }
 
     setPlaygroundResult(formatAiResponse(reply));
   } catch (error) {
@@ -213,11 +267,59 @@ async function checkPlaygroundCode() {
   }
 }
 
+function parsePlaygroundReview(reply) {
+  const text = String(reply || '').trim();
+  if (!text) return { passed: false, heading: 'No response', summary: 'Zebri did not return a review.', issues: [], fix: '' };
+
+  const start = text.indexOf('{');
+  const end = text.lastIndexOf('}');
+  if (start >= 0 && end > start) {
+    try {
+      const parsed = JSON.parse(text.slice(start, end + 1));
+      return {
+        passed: Boolean(parsed.passed),
+        heading: parsed.heading || 'Playground review',
+        summary: parsed.summary || '',
+        issues: Array.isArray(parsed.issues) ? parsed.issues : [],
+        fix: parsed.fix || '',
+      };
+    } catch (_) {
+      // fall through to plain-text handling
+    }
+  }
+
+  return {
+    passed: /pass|looks good|correct/i.test(text),
+    heading: 'Playground review',
+    summary: text,
+    issues: [],
+    fix: '',
+  };
+}
+
+function formatPlaygroundReview(review, rawReply) {
+  const issues = (review.issues || []).map(issue => `<li>${wrapInlineCode(formatRichText(issue))}</li>`).join('');
+  const fix = review.fix ? `<pre>${wrapInlineCode(formatRichText(review.fix))}</pre>` : '';
+  const status = review.passed ? '<div class="empty-state">Passed. The node will be marked complete.</div>' : '<div class="empty-state">Not yet passing. Fix the issues and run the check again.</div>';
+  const fallback = rawReply && !review.summary ? `<p>${wrapInlineCode(formatRichText(rawReply))}</p>` : '';
+  return `<h3>${wrapInlineCode(formatRichText(review.heading || 'Playground review'))}</h3><p>${wrapInlineCode(formatRichText(review.summary || ''))}</p>${issues ? `<ul>${issues}</ul>` : ''}${fix}${status}${fallback}`;
+}
+
 function escapeHtml(text) {
   return String(text)
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
+}
+
+function formatRichText(text) {
+  return escapeHtml(text)
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/__(.+?)__/g, '<strong>$1</strong>')
+    .replace(/&lt;strong&gt;([\s\S]*?)&lt;\/strong&gt;/gi, '<strong>$1</strong>')
+    .replace(/&lt;em&gt;([\s\S]*?)&lt;\/em&gt;/gi, '<em>$1</em>')
+    .replace(/&lt;br\s*\/&gt;|&lt;br&gt;/gi, '<br>')
+    .replace(/\n/g, '<br>');
 }
 
 function wrapInlineCode(text) {
@@ -240,8 +342,17 @@ function formatAiResponse(text) {
     .slice(0, 6);
 
   const heading = source[0] || normalized || 'Zebri';
-  const body = source.slice(1).map(line => `<p>${wrapInlineCode(escapeHtml(line))}</p>`).join('');
-  return `<h3>${wrapInlineCode(escapeHtml(heading))}</h3>${body}`;
+  const body = source.slice(1).map(line => `<p>${wrapInlineCode(formatRichText(line))}</p>`).join('');
+  return `<h3>${wrapInlineCode(formatRichText(heading))}</h3>${body}`;
+}
+
+function highlightZzzzzHtml(html) {
+  const value = String(html || '');
+  if (!/Zzzzz/i.test(value)) return value;
+  return value
+    .split(/(<[^>]+>)/g)
+    .map(part => (part.startsWith('<') ? part : part.replace(/\bZzzzz\b/gi, '<span class="zebri-zzz">Zzzzz</span>')))
+    .join('');
 }
 
 function showGenerationPreview() {
@@ -309,20 +420,16 @@ async function nimChat(messages, maxTokens = 1200, jsonMode = false) {
 //  SCREEN 0: API KEY
 // ═══════════════════════════════════
 async function validateApiKey() {
+  const loginId = document.getElementById('login-id-input').value.trim();
+  const password = document.getElementById('login-password-input').value;
+  const reminderEmail = document.getElementById('login-email-input').value.trim();
   const key = document.getElementById('api-key-input').value.trim();
   const model = document.getElementById('model-select').value;
-  const name = document.getElementById('user-name-input').value.trim() || 'Learner';
   const errEl = document.getElementById('api-error');
   errEl.classList.remove('show');
 
-  if (!key || !key.startsWith('nvapi-')) {
-    errEl.textContent = 'Key must start with nvapi-. Get one at build.nvidia.com';
-    errEl.classList.add('show');
-    return;
-  }
-
   const btn = document.querySelector('#s-apikey .btn-primary');
-  btn.textContent = 'Connecting...';
+  btn.textContent = password ? 'Signing In...' : 'Connecting...';
   btn.disabled = true;
 
   try {
@@ -330,7 +437,14 @@ async function validateApiKey() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
-      body: JSON.stringify({ name, apiKey: key, model }),
+      body: JSON.stringify({
+        loginId: loginId || reminderEmail || 'Learner',
+        name: loginId || reminderEmail || 'Learner',
+        email: reminderEmail,
+        password,
+        apiKey: key,
+        model,
+      }),
     });
 
     const data = await res.json().catch(() => ({}));
@@ -340,7 +454,7 @@ async function validateApiKey() {
 
     STATE.apiKey = '';
     STATE.model = data?.user?.model || model;
-    STATE.userName = data?.user?.name || name;
+  STATE.userName = data?.user?.name || loginId || reminderEmail || 'Learner';
     STATE.currentRoadmapId = null;
     loadLeaderboard();
     syncUserBadges();
@@ -349,10 +463,10 @@ async function validateApiKey() {
     await fetchRoadmaps();
     toast('✓ Connected to NVIDIA NIM!');
   } catch (e) {
-    errEl.textContent = 'Connection failed: ' + e.message;
+    errEl.textContent = 'Sign in failed: ' + e.message;
     errEl.classList.add('show');
   } finally {
-    btn.textContent = 'Connect & Start →';
+    btn.textContent = 'Sign In / Create Account →';
     btn.disabled = false;
   }
 }
@@ -403,6 +517,10 @@ function goHome() {
   showScreen('s-home');
 }
 
+/**
+ * The function fetches roadmaps data from an API endpoint, handles errors, and updates the application
+ * state accordingly.
+ */
 async function fetchRoadmaps() {
   try {
     const res = await fetch('/api/roadmaps', { credentials: 'include' });
@@ -415,6 +533,10 @@ async function fetchRoadmaps() {
   }
 }
 
+/**
+ * The function `fetchDiscoverRoadmaps` fetches roadmaps based on search, filter, genre, and tag
+ * parameters and handles errors accordingly.
+ */
 async function fetchDiscoverRoadmaps() {
   try {
     const params = new URLSearchParams();
@@ -509,7 +631,9 @@ function renderStarControls(roadmap) {
   return Array.from({ length: 5 }, (_, index) => {
     const rating = index + 1;
     const active = rating <= current;
-    return `<button class="roadmap-star${active ? ' active' : ''}" title="Rate ${rating} star${rating === 1 ? '' : 's'}" onclick="event.stopPropagation(); rateRoadmap(${roadmap.id}, ${rating})">★</button>`;
+    const nextRating = current === rating ? 0 : rating;
+    const title = current === rating ? `Clear ${rating}-star rating` : `Rate ${rating} star${rating === 1 ? '' : 's'}`;
+    return `<button class="roadmap-star${active ? ' active' : ''}" title="${title}" onclick="event.stopPropagation(); rateRoadmap(${roadmap.id}, ${nextRating})">★</button>`;
   }).join('');
 }
 
@@ -525,7 +649,8 @@ function renderRoadmapCard(roadmap, options = {}) {
   const pct = totalSteps ? Math.round((done / totalSteps) * 100) : 0;
   const averageLine = `By ${escapeHtml(roadmap.ownerName || 'Unknown')} · ${formatRatingSummary(roadmap)}`;
   const genreHtml = `<span class="roadmap-genre">${escapeHtml(roadmap.genre || 'General')}</span>`;
-  const tags = Array.isArray(roadmap.tags) ? roadmap.tags : [];
+  const overviewText = String(roadmap.overview || '').trim();
+  const displayTitle = formatRichText(roadmap.title || roadmap.task || 'Roadmap');
   const actions = [];
 
   if (showCopy) {
@@ -541,12 +666,12 @@ function renderRoadmapCard(roadmap, options = {}) {
   const clickAttr = clickable ? ` onclick="${mode === 'my' ? `loadSavedRoadmap(${roadmap.id})` : ''}"` : '';
   const cardClass = `roadmap-card${roadmap.loading || roadmap.status === 'loading' ? ' loading' : ''}${mode === 'discover' ? ' discover-card' : ''}`;
   const ratingHtml = `<div class="roadmap-rating-row">${renderStarControls(roadmap)}<span class="roadmap-rating-summary">${escapeHtml(formatRatingSummary(roadmap))}</span></div>`;
-  const tagHtml = tags.length ? `<div class="roadmap-tags">${tags.map(tag => `<span class="roadmap-tag">${escapeHtml(tag)}</span>`).join('')}</div>` : '';
+  const overviewHtml = `<div class="roadmap-overview">${formatRichText(overviewText || `${roadmap.genre || 'General'} learning path for ${roadmap.task || 'this goal'}.`)}</div>`;
 
   if (roadmap.loading || roadmap.status === 'loading') {
     return `<div class="${cardClass}" aria-busy="true">
       <div class="rc-left">
-        <div class="rc-title">${escapeHtml(roadmap.task)}</div>
+        <div class="rc-title">${displayTitle}</div>
         <div class="rc-meta">${escapeHtml(roadmap.loadingText || 'Planning roadmap...')}</div>
         <div class="rc-loading"><span class="rc-loading-dot"></span><span class="rc-loading-dot"></span><span class="rc-loading-dot"></span> AI is drafting it now</div>
         <div class="rc-bar-wrap"><div class="rc-bar-fill" style="width:72%"></div></div>
@@ -558,7 +683,7 @@ function renderRoadmapCard(roadmap, options = {}) {
   if (roadmap.status === 'error') {
     return `<div class="${cardClass}" aria-busy="false">
       <div class="rc-left">
-        <div class="rc-title">${escapeHtml(roadmap.task)}</div>
+        <div class="rc-title">${displayTitle}</div>
         <div class="rc-meta">Generation failed</div>
         <div class="rc-loading">${escapeHtml(roadmap.loadingText || 'Try again later')}</div>
         <div class="rc-bar-wrap"><div class="rc-bar-fill" style="width:20%;background:var(--pink)"></div></div>
@@ -569,11 +694,11 @@ function renderRoadmapCard(roadmap, options = {}) {
 
   return `<div class="${cardClass}"${clickAttr}>
     <div class="rc-left">
-      <div class="rc-title">${escapeHtml(roadmap.task)}</div>
+      <div class="rc-title">${displayTitle}</div>
       <div class="rc-meta">${escapeHtml(averageLine)}</div>
       <div class="roadmap-submeta">${done}/${totalSteps} steps complete · ${escapeHtml(roadmap.ownerName || 'Unknown')}</div>
       <div class="roadmap-genre-row">${genreHtml}</div>
-      ${tagHtml}
+      ${overviewHtml}
       ${ratingHtml}
       <div class="rc-bar-wrap"><div class="rc-bar-fill" style="width:${pct}%"></div></div>
     </div>
@@ -642,12 +767,11 @@ async function loadSavedRoadmap(id) {
   STATE.nodeStatus = r.nodeStatus;
   STATE.earnedXP = r.earnedXP;
   STATE.totalXP = r.totalXP;
-  STATE.chatHistory = [];
+  STATE.chatHistory = Array.isArray(r.chatHistory) ? r.chatHistory : [];
   renderRoadmap();
   updateHUD();
   updatePlaygroundAvailability();
-  document.getElementById('chat-msgs').innerHTML = '';
-  addChatMsg('ai', `Welcome back! Continuing: <strong>${STATE.task}</strong>. You have <strong>${STATE.earnedXP} XP</strong>. Keep going!`, true);
+  renderChatHistory();
   showScreen('s-roadmap');
 }
 
@@ -678,18 +802,23 @@ function setRoadmapLoading(task, isLoading) {
 // ═══════════════════════════════════
 //  SCREEN 2: TASK
 // ═══════════════════════════════════
-function goToTaskScreen() { showScreen('s-task'); }
+function goToTaskScreen() {
+  showScreen('s-task');
+  updateImportPreview();
+}
 function setExample(text) { document.getElementById('task-input').value = text; }
 
 async function generateRoadmap() {
-  const task = document.getElementById('task-input').value.trim();
+  const goal = document.getElementById('task-input').value.trim();
+  const task = buildRoadmapTask(goal);
+  const displayTask = buildConciseRoadmapTitle(goal || STATE.importedSourceSummary || 'Uploaded study material');
   if (!task || task.length < 8) {
     toast('Please describe your goal first!');
     return;
   }
-  STATE.task = task;
+  STATE.task = displayTask;
 
-  setRoadmapLoading(task, true);
+  setRoadmapLoading(displayTask, true);
   showScreen('s-home');
   toast('Roadmap request started. Browse your roadmaps while Zebri plans it.');
   try {
@@ -705,19 +834,20 @@ async function generateRoadmap() {
     }
 
     STATE.currentRoadmapId = data.id;
+    STATE.task = data.title || displayTask;
     STATE.currentRoadmapGenre = data.genre || '';
     STATE.currentRoadmapTags = Array.isArray(data.tags) ? data.tags : [];
     STATE.roadmap = data.roadmap || [];
     STATE.nodeStatus = data.nodeStatus || [];
     STATE.earnedXP = data.earnedXP || 0;
     STATE.totalXP = data.totalXP || 0;
-    STATE.chatHistory = [];
-    document.getElementById('chat-msgs').innerHTML = '';
+    STATE.chatHistory = Array.isArray(data.chatHistory) ? data.chatHistory : [];
     renderRoadmap();
     updateHUD();
     updatePlaygroundAvailability();
+    renderChatHistory();
     await refreshRoadmapLists();
-    toast(`Roadmap ready: ${task}`);
+    toast(`Roadmap ready: ${displayTask}`);
   } catch (e) {
     await refreshRoadmapLists();
     toast('Generation failed: ' + e.message, 4000);
@@ -744,11 +874,11 @@ async function copyRoadmap(id) {
       STATE.nodeStatus = copied.nodeStatus || [];
       STATE.earnedXP = copied.earnedXP || 0;
       STATE.totalXP = copied.totalXP || 0;
-      STATE.chatHistory = [];
-      document.getElementById('chat-msgs').innerHTML = '';
+      STATE.chatHistory = Array.isArray(copied.chatHistory) ? copied.chatHistory : [];
       renderRoadmap();
       updateHUD();
       updatePlaygroundAvailability();
+      renderChatHistory();
       showScreen('s-roadmap');
     }
 
@@ -852,7 +982,7 @@ function renderRoadmap() {
       ${status === 'done' ? '<div class="node-check">✓</div>' : ''}
       <div class="node-inner">
         <span class="node-icon">${node.icon || '📌'}</span>
-        <div class="node-title">${node.title}</div>
+        <div class="node-title">${formatRichText(node.title)}</div>
         <div class="node-sub">${status === 'locked' ? 'Locked' : status === 'done' ? 'Completed' : status === 'active' ? 'In progress' : ''}</div>
         <div class="node-xp">+${node.xp || 100} XP</div>
       </div>`;
@@ -886,19 +1016,28 @@ function onNodeClick(i) {
 
   if (status === 'locked') {
     toast('🔒 Finish the previous step first!');
-    addChatMsg('ai', `<strong>${node.title}</strong> is still locked. Complete the current active step to unlock it!`, true);
+    addChatMsg('ai', `<strong>${formatRichText(node.title)}</strong> is still locked. Complete the current active step to unlock it!`, true);
     return;
   }
 
   if (status === 'done') {
-    addChatMsg('ai', `You've already completed <strong>${node.title}</strong> and earned +${node.xp} XP. Want me to explain it again or quiz you?`, true);
+    addChatMsg('ai', `You've already completed <strong>${formatRichText(node.title)}</strong> and earned +${node.xp} XP. Want me to explain it again or quiz you?`, true);
     document.getElementById('prompt-ctx').textContent = 'Context: ' + node.title;
     return;
   }
 
+  if (node.mode === 'playground') {
+    addChatMsg('ai', `This step requires the Playground. Run the code there, then return here to continue.`, true);
+    STATE.currentNodeForModal = i;
+    openPlayground();
+    return;
+  }
+
   STATE.currentNodeForModal = i;
-  document.getElementById('modal-node-name').textContent = node.icon + ' ' + node.title;
-  document.getElementById('modal-node-desc').textContent = node.desc || '';
+  document.getElementById('modal-node-name').innerHTML = `${escapeHtml(node.icon)} ${formatRichText(node.title)}`;
+  document.getElementById('modal-node-desc').innerHTML = node.mode === 'playground'
+    ? formatRichText('This step requires code execution in the Playground before it can be passed.')
+    : formatRichText(node.desc || '');
   showModal('modal-pol');
   document.getElementById('prompt-ctx').textContent = 'Context: ' + node.title;
 }
@@ -910,13 +1049,19 @@ function startPlay() {
   closeModal('modal-pol');
   const i = STATE.currentNodeForModal;
   const node = STATE.roadmap[i];
+  if (node && node.mode === 'playground') {
+    openPlayground();
+    toast('This step requires the Playground.');
+    return;
+  }
   if (!node.qa || !node.qa.length) {
     toast('No quiz for this node yet!');
     return;
   }
   STATE.currentQA = node.qa;
   STATE.currentQIndex = 0;
-  document.getElementById('qna-node-name').textContent = node.icon + ' ' + node.title;
+  STATE.currentQuizCorrectCount = 0;
+  document.getElementById('qna-node-name').innerHTML = `${escapeHtml(node.icon)} ${formatRichText(node.title)}`;
   renderQNA();
   showModal('modal-qna');
 }
@@ -949,6 +1094,7 @@ function answerQNA(chosen) {
   if (chosen === correct) {
     fb.textContent = '✓ Correct! Well done.';
     fb.className = 'qna-feedback show ok';
+    STATE.currentQuizCorrectCount = (STATE.currentQuizCorrectCount || 0) + 1;
   } else {
     fb.textContent = `✗ Wrong. Correct: ${String.fromCharCode(65 + correct)}. ${q.opts[correct]}`;
     fb.className = 'qna-feedback show bad';
@@ -959,9 +1105,17 @@ function answerQNA(chosen) {
 function nextQuestion() {
   STATE.currentQIndex++;
   if (STATE.currentQIndex >= STATE.currentQA.length) {
-    closeModal('modal-qna');
-    completeNode(STATE.currentNodeForModal);
-    toast('🎉 Quiz complete! XP earned!', 3000);
+    const requiredCorrect = Math.max(1, Math.ceil((STATE.currentQA.length || 1) * 0.67));
+    if ((STATE.currentQuizCorrectCount || 0) >= requiredCorrect) {
+      closeModal('modal-qna');
+      completeNode(STATE.currentNodeForModal);
+      toast('🎉 Quiz complete! XP earned!', 3000);
+    } else {
+      STATE.currentQIndex = 0;
+      STATE.currentQuizCorrectCount = 0;
+      toast(`You need at least ${requiredCorrect} correct answers. Try again.`);
+      renderQNA();
+    }
   } else {
     renderQNA();
   }
@@ -970,27 +1124,89 @@ function nextQuestion() {
 // ═══════════════════════════════════
 //  LEARN MODE (AI explanation)
 // ═══════════════════════════════════
+function buildLearnModePrompt(task, node, questions) {
+  const questionText = (questions || [])
+    .map((q, index) => `${index + 1}. ${q.q}`)
+    .join('\n');
+
+  return `You are Zebri, a friendly tutor who teaches like a short story.
+Write a vivid, interactive explanation that feels like a mini adventure.
+Requirements:
+- Use plain text only.
+- Start with a short title line.
+- Tell the idea as 2 to 3 short story-like paragraphs.
+- Ask the learner the provided questions directly, using the exact wording.
+- Keep it warm, simple, and conversational.
+- End with a small invitation for the learner to answer in chat.
+- Include the Zebri trademark word "Zzzzz" exactly once somewhere in the response, but do not force it into every line.
+
+Topic: "${task}"
+Step title: "${node?.title || ''}"
+Step details: ${node?.desc || ''}
+
+Questions to ask:
+${questionText || 'No questions provided.'}`;
+}
+
+function sprinkleZzzzz(text) {
+  const value = String(text || '').trim();
+  if (!value) return 'Zzzzz';
+  if (/Zzzzz/i.test(value)) return value;
+  if (Math.random() < 0.65) return `${value} Zzzzz`;
+  return value;
+}
+
+function formatLearnModeResponse(text, questions) {
+  const normalized = String(text || '').replace(/\r\n/g, '\n').trim();
+  const lines = normalized.split(/\n+/).map(line => line.trim()).filter(Boolean);
+  const source = lines.length ? lines : [normalized || 'Let’s learn together.'];
+  const title = sprinkleZzzzz(source[0] || 'Zebri Learn Mode');
+  const bodyLines = source.slice(1).map(line => `<p>${wrapInlineCode(formatRichText(line))}</p>`).join('');
+  const questionBlocks = (questions || []).slice(0, 2).map((question, index) => {
+    const label = `Question ${index + 1}`;
+    return `<div class="empty-state" style="margin-top:10px;text-align:left"><strong>${label}:</strong> ${wrapInlineCode(formatRichText(question.q || ''))}</div>`;
+  }).join('');
+  const invite = '<p><strong>Your move:</strong> reply in chat with your answer, and I’ll keep the story going.</p>';
+  return `<h3>${wrapInlineCode(formatRichText(title))}</h3>${bodyLines}${questionBlocks}${invite}`;
+}
+
+function formatPlaygroundGuide(challenge) {
+  if (!challenge) {
+    return '<div class="empty-state">No specific playground problem is attached to this step.</div>';
+  }
+
+  return `
+    <div style="display:grid;gap:10px;text-align:left">
+      <div><strong>Problem:</strong> ${wrapInlineCode(formatRichText(challenge.prompt || ''))}</div>
+      <div><strong>Example:</strong> ${wrapInlineCode(formatRichText(challenge.example || 'Example problem coming soon.'))}</div>
+      <div><strong>Acceptance:</strong> ${wrapInlineCode(formatRichText(challenge.acceptance || ''))}</div>
+      <div><strong>Starter:</strong> ${wrapInlineCode(formatRichText(challenge.starter || ''))}</div>
+    </div>
+  `;
+}
+
 async function startLearn() {
   closeModal('modal-pol');
   const i = STATE.currentNodeForModal;
   const node = STATE.roadmap[i];
-  addChatMsg('user', `Teach me about: ${node.title}`);
+  const learnQuestions = Array.isArray(node?.qa) ? node.qa : [];
+  addChatMsg('user', `Teach me about: <strong>${formatRichText(node.title)}</strong>`, true);
   showTyping();
   try {
     const reply = await nimChat([
       {
         role: 'system',
-        content: `You are Zebri, a concise learning tutor. Reply with at most 4 short lines: 1) Heading, 2) Subheading, 3) one short paragraph, 4) bullet points when useful. Wrap any code in backticks only. No filler, no markdown.`
+        content: buildLearnModePrompt(STATE.task, node, learnQuestions)
       },
       {
         role: 'user',
-        content: `Explain this learning step for someone studying "${STATE.task}": "${node.title}" — ${node.desc}`
+        content: `Explain this learning step for someone studying "${STATE.task}": "${node.title}". Use the step questions to guide the learner.`
       }
     ], 400);
     hideTyping();
-    addChatMsg('ai', reply);
+    addChatMsg('ai', formatLearnModeResponse(reply, learnQuestions), true);
     setTimeout(() => {
-      addChatMsg('ai', `Ready to test yourself? Tap the <strong>${node.icon} ${node.title}</strong> node and choose <strong>Play Quiz</strong>. You earn <strong>+${node.xp} XP</strong> when you finish.`, true);
+      addChatMsg('ai', `If you want a checkpoint after the story, tap the <strong>${escapeHtml(node.icon)} ${formatRichText(node.title)}</strong> node and choose <strong>Play Quiz</strong>. You earn <strong>+${node.xp} XP</strong> when you finish.`, true);
     }, 800);
   } catch (e) {
     hideTyping();
@@ -1016,10 +1232,12 @@ function completeNode(i) {
   saveCurrentRoadmap();
   saveLeaderboard();
 
-  addChatMsg('ai', `Done: <strong>${node.title}</strong>. You earned <strong>+${node.xp} XP</strong>, bringing you to <strong>${STATE.earnedXP} XP</strong>.${next < STATE.roadmap.length ? ` Next: <strong>${STATE.roadmap[next].title}</strong>.` : ' Roadmap complete.'}`, true);
+  addChatMsg('ai', `Done: <strong>${formatRichText(node.title)}</strong>. You earned <strong>+${node.xp} XP</strong>, bringing you to <strong>${STATE.earnedXP} XP</strong>.${next < STATE.roadmap.length ? ` Next: <strong>${formatRichText(STATE.roadmap[next].title)}</strong>.` : ' Roadmap complete.'}`, true);
 
   const allDone = STATE.nodeStatus.every(s => s === 'done');
   if (allDone) {
+    launchConfetti();
+    addChatMsg('ai', `You finished <strong>${formatRichText(node.title)}</strong> and completed the roadmap. Next best move: build one tiny project from the hardest step, then revisit it in a week and tighten the weak spots.`, true);
     setTimeout(() => {
       toast('🏆 ROADMAP COMPLETE! Leaderboard updated!', 4000);
       saveLeaderboard();
@@ -1030,16 +1248,24 @@ function completeNode(i) {
 // ═══════════════════════════════════
 //  CHAT
 // ═══════════════════════════════════
-function addChatMsg(role, html, rawHtml = false) {
+function addChatMsg(role, html, rawHtml = false, persist = true) {
   const container = document.getElementById('chat-msgs');
   const div = document.createElement('div');
   div.className = 'msg ' + role;
   const bubbleHtml = role === 'ai'
     ? (rawHtml ? html : formatAiResponse(html))
     : `<p>${escapeHtml(html).replace(/\n/g, '<br>')}</p>`;
-  div.innerHTML = `<div class="msg-label">${role === 'user' ? STATE.userName : 'Zebri'}</div><div class="msg-bubble">${bubbleHtml}</div>`;
+  div.innerHTML = `<div class="msg-label">${role === 'user' ? STATE.userName : 'Zebri'}</div><div class="msg-bubble">${highlightZzzzzHtml(bubbleHtml)}</div>`;
   container.appendChild(div);
   container.scrollTop = container.scrollHeight;
+
+  if (persist && STATE.currentRoadmapId) {
+    STATE.chatHistory.push({ role, content: html, rawHtml: Boolean(rawHtml) });
+    if (STATE.chatHistory.length > 80) {
+      STATE.chatHistory = STATE.chatHistory.slice(-80);
+    }
+    scheduleChatHistorySave();
+  }
 }
 
 function showTyping() { document.getElementById('typing').classList.add('show'); }
@@ -1058,6 +1284,7 @@ async function saveCurrentRoadmap() {
         nodeStatus: STATE.nodeStatus,
         earnedXP: STATE.earnedXP,
         totalXP: STATE.totalXP,
+        chatHistory: STATE.chatHistory,
         status: 'ready',
       }),
     });
@@ -1079,16 +1306,12 @@ async function sendChat() {
 
   const sysPrompt = `You are Zebri, a concise AI guide. Reply with at most 4 short lines: 1) Heading, 2) Subheading, 3) one short paragraph, 4) bullet points when useful. Wrap any code in backticks only. No filler, no markdown. The user is working on: "${STATE.task}". They have completed ${done}/${STATE.roadmap.length} steps and earned ${STATE.earnedXP} XP. Current active step: ${activeNode ? `"${activeNode.title}" — ${activeNode.desc}` : 'All steps locked/done'}.`;
 
-  STATE.chatHistory.push({ role: 'user', content: text });
-  if (STATE.chatHistory.length > 12) STATE.chatHistory = STATE.chatHistory.slice(-12);
-
   try {
     const reply = await nimChat([
       { role: 'system', content: sysPrompt },
       ...STATE.chatHistory,
     ], 300);
     hideTyping();
-    STATE.chatHistory.push({ role: 'assistant', content: reply });
     addChatMsg('ai', reply);
   } catch (e) {
     hideTyping();
@@ -1136,7 +1359,17 @@ function logout() {
   STATE.nodeStatus = [];
   STATE.earnedXP = 0;
   STATE.totalXP = 0;
+  STATE.pomodoroSession = null;
+  STATE.pomodoroToken = '';
+  STATE.pomodoroTrackerUrl = '';
+  STATE.pomodoroBusy = false;
+  setPomodoroSession(null, '');
+  clearImportedSource();
+  closePomodoroModal();
   document.getElementById('api-key-input').value = '';
+  document.getElementById('login-id-input').value = '';
+  document.getElementById('login-password-input').value = '';
+  document.getElementById('login-email-input').value = '';
   document.getElementById('task-input').value = '';
   document.getElementById('chat-msgs').innerHTML = '';
   syncUserBadges();
@@ -1165,6 +1398,7 @@ async function bootstrapApp() {
     await fetchRoadmaps();
     updatePlaygroundAvailability();
     renderDiscoverRoadmaps();
+    updateImportPreview();
   } catch {
     showScreen('s-apikey');
   }

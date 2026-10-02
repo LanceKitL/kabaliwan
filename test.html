@@ -11,14 +11,15 @@
 /* ── RESET ── */
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
 :root{
-  --black:#000;--white:#fff;--yellow:#FDE047;--green:#4ADE80;
-  --pink:#F472B6;--sky:#38BDF8;--orange:#FB923C;--cream:#FFFBEB;
+  --black:#0B1020;--white:#fff;--yellow:#FDE047;--green:#4ADE80;
+  --pink:#F472B6;--sky:#38BDF8;--orange:#FB923C;--cream:#FFF7E6;
+  --teal:#2DD4BF;--violet:#A78BFA;--peach:#FDBA74;--amber:#F59E0B;
   --muted:#D1C9B8;--red:#FF4444;
   --b:2.5px solid #000;--bh:3px solid #000;
   --s1:3px 3px 0 #000;--s2:4px 4px 0 #000;--s3:6px 6px 0 #000;--s4:8px 8px 0 #000;
   --fm:'Sora',sans-serif;--fb:'Sora',sans-serif;
 }
-html,body{height:100%;width:100%;overflow:hidden;background:var(--cream);font-family:var(--fb);color:var(--black)}
+html,body{height:100%;width:100%;overflow:hidden;background:linear-gradient(135deg,#fff7e6 0%,#eef7ff 52%,#fff1f7 100%);font-family:var(--fb);color:var(--black)}
 button{font-family:var(--fm);cursor:pointer;border:none}
 input,textarea{font-family:var(--fb);outline:none}
 
@@ -52,28 +53,29 @@ input,textarea{font-family:var(--fb);outline:none}
    SCREEN 1: HOME / LEADERBOARD
 ═══════════════════════════════════ */
 #s-home{background:var(--cream);flex-direction:column;overflow:hidden}
-.home-header{background:var(--black);color:var(--yellow);border-bottom:var(--bh);padding:0 24px;height:60px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.home-header{background:linear-gradient(90deg,#0f172a 0%,#111827 55%,#1d4ed8 100%);color:var(--yellow);border-bottom:var(--bh);padding:0 24px;height:60px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
 .home-logo{font-family:var(--fm);font-size:22px;font-weight:700;letter-spacing:-1px}
 .home-header-right{display:flex;align-items:center;gap:10px}
 .hbtn{background:var(--yellow);color:var(--black);border:var(--bh);box-shadow:var(--s1);font-family:var(--fm);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;padding:7px 14px;transition:transform .1s,box-shadow .1s}
 .hbtn:hover{transform:translate(2px,2px);box-shadow:none}
 .hbtn.pink{background:var(--pink)}
+.hbtn.teal{background:var(--teal)}
 .home-body{flex:1;overflow-y:auto;padding:28px 24px;display:grid;grid-template-columns:1fr 340px;gap:24px;align-items:start}
 .home-left{display:flex;flex-direction:column;gap:20px}
 .section-head{font-family:var(--fm);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.14em;background:var(--black);color:var(--yellow);padding:6px 14px;display:inline-block;margin-bottom:8px}
 .my-roadmaps{display:flex;flex-direction:column;gap:10px}
-.roadmap-card{background:var(--white);border:var(--bh);box-shadow:var(--s2);padding:16px 18px;cursor:pointer;transition:transform .1s,box-shadow .1s;display:flex;align-items:center;justify-content:space-between;gap:12px}
+.roadmap-card{background:linear-gradient(180deg,var(--white),#fff6d9);border:var(--bh);box-shadow:var(--s2);padding:22px 24px;cursor:pointer;transition:transform .1s,box-shadow .1s;display:flex;align-items:flex-start;justify-content:space-between;gap:16px;min-height:164px}
 .roadmap-card:hover{transform:translate(-2px,-2px);box-shadow:var(--s4)}
 .roadmap-card.discover-card{cursor:default;align-items:flex-start}
 .roadmap-card.loading{cursor:default;background:linear-gradient(90deg,var(--cream),#fff8d8,var(--cream));background-size:200% 100%;animation:loadingCard 1.4s linear infinite}
 .roadmap-card.loading:hover{transform:none;box-shadow:var(--s2)}
-.rc-left{flex:1}
-.rc-side{display:flex;flex-direction:column;align-items:flex-end;gap:10px;min-width:136px}
-.rc-title{font-family:var(--fm);font-size:12px;font-weight:700;letter-spacing:0.04em}
-.rc-meta{font-size:10px;color:#666;margin-top:3px}
+.rc-left{flex:1;min-width:0}
+.rc-side{display:flex;flex-direction:column;align-items:flex-end;gap:10px;min-width:160px}
+.rc-title{font-family:var(--fm);font-size:14px;font-weight:800;letter-spacing:0.03em;line-height:1.25}
+.rc-meta{font-size:10px;color:#666;margin-top:6px}
 .rc-bar-wrap{margin-top:8px;height:8px;background:var(--muted);border:1.5px solid var(--black)}
 .rc-bar-fill{height:100%;background:var(--green);border-right:1.5px solid var(--black)}
-.rc-xp{font-family:var(--fm);font-size:11px;font-weight:700;background:var(--yellow);border:var(--b);padding:4px 10px;white-space:nowrap}
+.rc-xp{font-family:var(--fm);font-size:11px;font-weight:700;background:linear-gradient(90deg,var(--yellow),#ffe08a);border:var(--b);padding:4px 10px;white-space:nowrap}
 .rc-xp.loading{background:var(--pink);animation:blink 1s infinite}
 .rc-loading{font-family:var(--fm);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#333;display:flex;align-items:center;gap:5px;margin-top:4px}
 .rc-loading-dot{width:6px;height:6px;background:var(--black);border-radius:50%;animation:dotPulse 1s infinite}
@@ -92,7 +94,8 @@ input,textarea{font-family:var(--fb);outline:none}
 .roadmap-rating-summary{font-family:var(--fm);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;background:var(--cream);border:1px solid var(--black);padding:4px 7px}
 .roadmap-submeta{font-size:10px;color:#555;margin-top:4px}
 .roadmap-genre-row{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
-.roadmap-genre{font-family:var(--fm);font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;padding:4px 7px;border:1px solid var(--black);background:var(--yellow)}
+.roadmap-genre{font-family:var(--fm);font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;padding:4px 7px;border:1px solid var(--black);background:linear-gradient(90deg,var(--yellow),#ffc7a2)}
+.roadmap-overview{margin-top:10px;padding:10px 12px;border:1.5px solid var(--black);background:linear-gradient(90deg,#f8fafc,#eefbf6 52%,#fff4d6);font-size:11px;line-height:1.7;color:#243041;box-shadow:var(--s1)}
 .roadmap-tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
 .roadmap-tag{font-family:var(--fm);font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;padding:4px 7px;border:1px solid var(--black);background:var(--cream)}
 .empty-state{border:2px dashed var(--black);padding:32px;text-align:center;color:#888;font-size:12px;line-height:1.8}
@@ -162,6 +165,10 @@ input,textarea{font-family:var(--fb);outline:none}
 .task-title{font-family:var(--fm);font-size:32px;font-weight:700;color:var(--yellow);line-height:1.1}
 .task-sub{font-size:12px;color:var(--muted);line-height:1.7}
 .task-card{background:var(--cream);border:var(--bh);box-shadow:var(--s4);padding:28px;display:flex;flex-direction:column;gap:16px}
+.task-import{background:linear-gradient(180deg,#fff, #eefbf6);border:var(--bh);box-shadow:var(--s2);padding:14px;display:flex;flex-direction:column;gap:10px}
+.task-import-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.task-file-input{flex:1;min-width:220px;border:var(--bh);box-shadow:var(--s1);background:var(--white);padding:11px 12px;font-family:var(--fb);font-size:12px}
+.task-file-summary{font-size:11px;line-height:1.6;color:#374151;padding:10px 12px;border:1.5px dashed #111;background:rgba(255,255,255,.78)}
 .task-examples{display:flex;flex-wrap:wrap;gap:6px}
 .ex-chip{background:var(--white);border:var(--b);font-family:var(--fm);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;padding:5px 10px;cursor:pointer;transition:background .1s,transform .1s}
 .ex-chip:hover{background:var(--sky);transform:translate(1px,1px)}
@@ -260,6 +267,8 @@ input,textarea{font-family:var(--fb);outline:none}
 .chat-dot{width:8px;height:8px;background:var(--green);border:1.5px solid var(--yellow);border-radius:50%;animation:blink 1.6s infinite}
 @keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
 .chat-title-info{margin-left:auto;font-size:8px;opacity:.6;letter-spacing:0.08em}
+.chat-header-btn{margin-left:10px;background:linear-gradient(90deg,var(--yellow),#ffd9b0);border:var(--bh);box-shadow:var(--s1);font-family:var(--fm);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;padding:6px 10px;transition:transform .1s,box-shadow .1s}
+.chat-header-btn:hover{transform:translate(2px,2px);box-shadow:none}
 .chat-msgs{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px;scrollbar-width:thin;scrollbar-color:var(--black) var(--muted)}
 .msg{display:flex;flex-direction:column;gap:3px;animation:msgin .2s ease-out both}
 @keyframes msgin{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
@@ -274,6 +283,12 @@ input,textarea{font-family:var(--fb);outline:none}
 .msg-bubble ul{margin:0;padding-left:18px}
 .msg-bubble li{margin:0 0 4px 0}
 .msg-bubble code{font-family:var(--fm);font-size:10px;background:var(--yellow);border:1px solid var(--black);padding:0 4px}
+.msg-bubble strong{font-weight:800;background:linear-gradient(transparent 52%, rgba(253,224,71,.92) 52%);padding:0 2px}
+.msg-bubble .zebri-zzz{
+  display:inline-block;
+  color: #143e96;
+  font-weight: bold;
+}
 .typing-indicator{display:none;align-items:center;gap:3px;padding:4px 0}
 .typing-indicator.show{display:flex}
 .t-dot{width:6px;height:6px;background:var(--black);border-radius:50%;animation:tdot .8s infinite}
@@ -296,16 +311,37 @@ input,textarea{font-family:var(--fb);outline:none}
 ═══════════════════════════════════ */
 .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:200;display:none;align-items:center;justify-content:center}
 .modal-overlay.show{display:flex}
-.modal{background:var(--cream);border:var(--bh);box-shadow:var(--s4);padding:32px;max-width:440px;width:90%;display:flex;flex-direction:column;gap:20px}
+.modal{background:var(--cream);border:var(--bh);box-shadow:var(--s4);padding:32px;max-width:560px;width:min(92vw,560px);display:flex;flex-direction:column;gap:20px}
 .modal-title{font-family:var(--fm);font-size:20px;font-weight:700;letter-spacing:-0.5px;line-height:1.2}
 .modal-node-name{font-family:var(--fm);font-size:12px;font-weight:700;background:var(--yellow);border:var(--b);padding:5px 12px;display:inline-block;margin-bottom:4px}
 .modal-desc{font-size:12px;color:#444;line-height:1.7}
-.modal-btns{display:flex;gap:10px}
-.modal-btn{flex:1;font-family:var(--fm);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;padding:14px 16px;border:var(--bh);box-shadow:var(--s2);transition:transform .1s,box-shadow .1s;cursor:pointer}
+.modal-btns{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.modal-btn{width:100%;min-width:0;font-family:var(--fm);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;padding:14px 16px;border:var(--bh);box-shadow:var(--s2);transition:transform .1s,box-shadow .1s;cursor:pointer}
 .modal-btn:hover{transform:translate(2px,2px);box-shadow:var(--s1)}
 .modal-btn.play{background:var(--green)}
 .modal-btn.learn{background:var(--sky)}
-.modal-btn.cancel{background:var(--white);flex:0;padding:14px 20px}
+.modal-btn.teal{background:var(--teal)}
+.modal-btn.cancel{background:var(--white);grid-column:1/-1;padding:14px 20px}
+
+@media (max-width: 520px){
+  .modal{padding:24px;width:min(94vw,560px)}
+  .modal-btns{grid-template-columns:1fr}
+}
+
+/* POMODORO */
+.pomodoro-modal{max-width:760px;width:min(92vw,760px)}
+.pomodoro-grid{display:grid;grid-template-columns:minmax(0,1fr) 220px;gap:16px;align-items:start}
+.pomodoro-left,.pomodoro-right{display:flex;flex-direction:column;gap:12px}
+.pomodoro-box{background:var(--white);border:var(--bh);box-shadow:var(--s2);padding:14px;display:flex;flex-direction:column;gap:10px}
+.pomodoro-time{font-family:var(--fm);font-size:44px;font-weight:800;line-height:1;letter-spacing:-0.06em}
+.pomodoro-progress{height:12px;border:var(--bh);box-shadow:var(--s1);background:var(--white);overflow:hidden}
+.pomodoro-progress-fill{height:100%;width:0;background:linear-gradient(90deg,var(--green),var(--sky));transition:width .35s ease}
+.pomodoro-meta{font-size:12px;line-height:1.65;color:#444}
+.pomodoro-qr{display:flex;align-items:center;justify-content:center;min-height:220px;background:var(--white);border:var(--bh);box-shadow:var(--s2);padding:10px}
+.pomodoro-qr img{width:100%;height:auto}
+.pomodoro-link{font-size:11px;word-break:break-all;line-height:1.5;color:#1d4ed8}
+.pomodoro-actions{display:flex;gap:8px;flex-wrap:wrap}
+.pomodoro-actions .modal-btn{flex:1;min-width:120px}
 
 /* QNA modal */
 .qna-modal{max-width:520px;max-height:80vh;overflow-y:auto}
@@ -324,6 +360,10 @@ input,textarea{font-family:var(--fb);outline:none}
 .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(60px);background:var(--black);color:var(--yellow);font-family:var(--fm);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;padding:10px 20px;border:2px solid var(--yellow);box-shadow:4px 4px 0 var(--yellow);z-index:999;transition:transform .2s cubic-bezier(.2,0,0,1),opacity .2s;opacity:0;white-space:nowrap}
 .toast.show{transform:translateX(-50%) translateY(0);opacity:1}
 
+#confetti-layer{position:fixed;inset:0;pointer-events:none;overflow:hidden;z-index:950}
+.confetti-piece{position:absolute;top:-20px;border-radius:2px;animation:confettiFall 3.8s ease-out forwards;animation-delay:var(--delay,0s);box-shadow:0 0 0 1px rgba(0,0,0,.18)}
+@keyframes confettiFall{0%{transform:translate3d(0,-20px,0) rotate(0deg);opacity:1}100%{transform:translate3d(var(--dx,0),110vh,0) rotate(var(--rot,720deg));opacity:0}}
+
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 </head>
@@ -336,13 +376,28 @@ input,textarea{font-family:var(--fb);outline:none}
     <div class="logo-sub">AI Learning Roadmap</div>
 
     <div class="api-card">
-      <div class="api-card-title">🔑 Connect NVIDIA NIM</div>
-        <p class="api-card-note">Disclaimer: Your API key is hashed and stored securely. <br> Use the Free models listed below to avoid any risks.</p>
+      <div class="api-card-title">🔑 Sign in or create an account</div>
+        <p class="api-card-note">Use a username or email with a password. Add your NVIDIA API key once to connect the AI; it is encrypted at rest on the server.</p>
       <p class="api-card-note">Get your free API key at <a href="https://build.nvidia.com" target="_blank">build.nvidia.com</a>. Keys start with <strong>nvapi-</strong></p>
 
       <div>
-        <div class="field-label">API Key</div>
-        <input id="api-key-input" class="inp" type="password" placeholder="nvapi-••••••••••••••••••••••">
+        <div class="field-label">Username or email</div>
+        <input id="login-id-input" class="inp" type="text" placeholder="e.g. Kit or kit@example.com">
+      </div>
+
+      <div>
+        <div class="field-label">Password</div>
+        <input id="login-password-input" class="inp" type="password" placeholder="Create or enter your password">
+      </div>
+
+      <div>
+        <div class="field-label">Email for reminders</div>
+        <input id="login-email-input" class="inp" type="email" placeholder="Optional, for reminders">
+      </div>
+
+      <div>
+        <div class="field-label">NVIDIA API Key</div>
+        <input id="api-key-input" class="inp" type="password" placeholder="Required on first setup or AI reconnect">
       </div>
 
       <div>
@@ -356,16 +411,9 @@ input,textarea{font-family:var(--fb);outline:none}
         </select>
       </div>
 
-      <div>
-        <div class="field-label">Your Name</div>
-        <input id="user-name-input" class="inp" type="text" placeholder="e.g. Kit">
-      </div>
+      <div id="api-error" class="api-error">Sign in failed. Check your password, username/email, or NVIDIA API key.</div>
 
-      <div id="api-error" class="api-error">Invalid key or connection failed. Check your nvapi- key.</div>
-
-      <button class="btn-primary" onclick="validateApiKey()">Connect & Start →</button>
-    </div>
-      <div>
+      <button class="btn-primary" onclick="validateApiKey()">Sign In / Create Account →</button>
     </div>
   </div>
 </div>
@@ -383,13 +431,13 @@ input,textarea{font-family:var(--fb);outline:none}
   </div>
   <div class="home-body">
     <div class="home-left">
+      <button class="new-btn" onclick="goToTaskScreen()">★ Create New Roadmap</button>
       <div>
         <div class="section-head">★ My Roadmaps</div>
         <div id="my-roadmaps" class="my-roadmaps">
           <div class="empty-state">No roadmaps yet.<br>Create your first one to get started!</div>
         </div>
       </div>
-      <button class="new-btn" onclick="goToTaskScreen()">★ Create New Roadmap</button>
     </div>
 
     <div>
@@ -465,6 +513,15 @@ input,textarea{font-family:var(--fb);outline:none}
     </div>
 
     <div class="task-card">
+      <div class="task-import">
+        <div class="field-label">Upload study material</div>
+        <div class="task-import-row">
+          <input id="task-file-input" class="task-file-input" type="file" accept=".txt,.pdf,text/plain,application/pdf" onchange="handleImportedSource(this.files && this.files[0]).catch(error => toast(error.message))">
+          <button class="btn-back" id="task-file-clear" onclick="clearImportedSource()" style="display:none">Clear file</button>
+        </div>
+        <div class="task-file-summary" id="task-file-summary">Upload a .txt or .pdf file to tailor the roadmap from reference material.</div>
+      </div>
+
       <div>
         <div class="field-label">Try an example</div>
         <div class="task-examples">
@@ -503,7 +560,7 @@ input,textarea{font-family:var(--fb);outline:none}
       <div class="hud-btns">
         <button class="hud-btn sky" onclick="showProfile()">👤 Profile</button>
         <button class="hud-btn yellow" onclick="goDiscover()">🌍 Discover</button>
-        <button class="hud-btn sky" id="hud-playground-btn" onclick="openPlayground()" style="display:none">🧪 Playground</button>
+        <button class="hud-btn teal" onclick="startPomodoroSession()">⏱ Pomodoro</button>
         <button class="hud-btn yellow" onclick="goHome()">🏠 Home</button>
         <button class="hud-btn pink" onclick="logout()">↩ Out</button>
       </div>
@@ -600,6 +657,7 @@ input,textarea{font-family:var(--fb);outline:none}
     <div class="modal-btns">
       <button class="modal-btn play" onclick="startPlay()">▶ Play Quiz</button>
       <button class="modal-btn learn" onclick="startLearn()">📖 Learn Mode</button>
+      <button class="modal-btn teal" onclick="startPomodoroSession()">⏱ Pomodoro</button>
       <button class="modal-btn learn" id="modal-playground-btn" onclick="openPlayground()" style="display:none">🧪 Playground</button>
       <button class="modal-btn cancel" onclick="closeModal('modal-pol')">✕</button>
     </div>
@@ -619,6 +677,43 @@ input,textarea{font-family:var(--fb);outline:none}
     <div style="display:flex;gap:8px;margin-top:16px">
       <button class="modal-btn" id="qna-next-btn" style="background:var(--yellow);display:none" onclick="nextQuestion()">Next →</button>
       <button class="modal-btn cancel" onclick="closeModal('modal-qna')">✕ Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ MODAL: POMODORO ═══════════ -->
+<div class="modal-overlay" id="modal-pomodoro">
+  <div class="modal pomodoro-modal">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+      <div>
+        <div class="modal-node-name" style="margin-bottom:8px">Pomodoro Live Tracker</div>
+        <div class="modal-title" id="pomodoro-title">Focus session</div>
+      </div>
+      <div style="font-family:var(--fm);font-size:10px;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;background:var(--yellow);border:var(--bh);padding:6px 10px" id="pomodoro-status">READY</div>
+    </div>
+    <div class="pomodoro-grid">
+      <div class="pomodoro-left">
+        <div class="pomodoro-box">
+          <div class="pomodoro-time" id="pomodoro-time">25:00</div>
+          <div class="pomodoro-progress"><div class="pomodoro-progress-fill" id="pomodoro-progress"></div></div>
+          <div class="pomodoro-meta" id="pomodoro-subtitle">Scan the QR code on your phone to follow this timer live.</div>
+        </div>
+        <div class="pomodoro-box">
+          <div class="pomodoro-actions">
+            <button class="modal-btn play" id="pomodoro-pause-btn" onclick="sendPomodoroAction('pause')">Pause</button>
+            <button class="modal-btn learn" id="pomodoro-resume-btn" onclick="sendPomodoroAction('resume')" style="display:none">Resume</button>
+            <button class="modal-btn teal" id="pomodoro-reset-btn" onclick="sendPomodoroAction('reset')">Reset</button>
+            <button class="modal-btn cancel" onclick="closePomodoroModal()">Close</button>
+          </div>
+          <a class="pomodoro-link" id="pomodoro-tracker-link" href="#" target="_blank" rel="noreferrer">Open the tracker page</a>
+          <div class="pomodoro-link" id="pomodoro-qr-code-link"></div>
+        </div>
+      </div>
+      <div class="pomodoro-right">
+        <div class="pomodoro-qr" id="pomodoro-qr">
+          <div class="empty-state">Start a session to generate the QR code.</div>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -643,6 +738,8 @@ input,textarea{font-family:var(--fb);outline:none}
         </div>
         <div class="playground-hint" id="playground-context">Available only for programming-related roadmaps.</div>
       </div>
+
+      <div class="empty-state" id="playground-problem">Select a playground step to see the coding problem and pass criteria.</div>
 
       <div class="playground-toolbar">
         <select id="playground-language" class="playground-select" onchange="setPlaygroundTemplate(this.value)">
@@ -683,6 +780,17 @@ input,textarea{font-family:var(--fb);outline:none}
 <!-- TOAST -->
 <div class="toast" id="toast"></div>
 
+<div id="confetti-layer" aria-hidden="true"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script>
+  if (window.pdfjsLib) {
+    window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+  }
+</script>
+
+<script src="app-extras.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

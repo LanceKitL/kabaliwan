@@ -10,6 +10,7 @@ const DB_PATH = path.join(ROOT, 'zebri.sqlite');
 const NIM_BASE = 'https://integrate.api.nvidia.com/v1';
 const SESSION_COOKIE = 'zebri_session';
 const SESSION_MAX_AGE = 60 * 60 * 24 * 7;
+const APP_SECRET = crypto.createHash('sha256').update(String(process.env.ZEBRI_SECRET || ROOT)).digest();
 
 const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -113,6 +114,64 @@ function nowIso() {
   return new Date().toISOString();
 }
 
+function encryptApiKey(apiKey) {
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv('aes-256-gcm', APP_SECRET, iv);
+  const ciphertext = Buffer.concat([cipher.update(apiKey, 'utf8'), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  return `enc:${Buffer.concat([iv, tag, ciphertext]).toString('base64')}`;
+}
+
+function hashPassword(password, salt = crypto.randomBytes(16).toString('hex')) {
+  const hash = crypto.scryptSync(String(password), salt, 64).toString('hex');
+  return { salt, hash };
+}
+
+function verifyPassword(password, salt, expectedHash) {
+  if (!salt || !expectedHash) return false;
+  const actualHash = crypto.scryptSync(String(password), salt, 64).toString('hex');
+  const expected = Buffer.from(String(expectedHash), 'hex');
+  const actual = Buffer.from(actualHash, 'hex');
+  if (expected.length !== actual.length) return false;
+  return crypto.timingSafeEqual(expected, actual);
+}
+
+function normalizeLoginInput(body = {}) {
+  const loginId = String(body.loginId || body.identifier || body.name || body.email || '').trim();
+  const emailFromBody = String(body.email || '').trim().toLowerCase();
+  const email = emailFromBody || (loginId.includes('@') ? loginId.toLowerCase() : '');
+  const name = String(body.name || '').trim() || (loginId.includes('@') ? loginId.split('@')[0] : loginId) || 'Learner';
+
+  return {
+    loginId,
+    email,
+    name,
+    password: String(body.password || ''),
+    apiKey: String(body.apiKey || '').trim(),
+    model: String(body.model || 'meta/llama-3.3-70b-instruct').trim(),
+  };
+}
+
+async function ensureUserSchema() {
+  await ensureColumn('users', 'email', 'TEXT');
+  await ensureColumn('users', 'password_hash', 'TEXT');
+  await ensureColumn('users', 'password_salt', 'TEXT');
+  await run('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email) WHERE email IS NOT NULL AND email != ""');
+}
+
+function decryptApiKey(value) {
+  const raw = String(value || '');
+  if (!raw.startsWith('enc:')) return raw;
+
+  const payload = Buffer.from(raw.slice(4), 'base64');
+  const iv = payload.subarray(0, 12);
+  const tag = payload.subarray(12, 28);
+  const ciphertext = payload.subarray(28);
+  const decipher = crypto.createDecipheriv('aes-256-gcm', APP_SECRET, iv);
+  decipher.setAuthTag(tag);
+  return Buffer.concat([decipher.update(ciphertext), decipher.final()]).toString('utf8');
+}
+
 function normalizeSearchText(text) {
   return String(text || '')
     .toLowerCase()
@@ -197,6 +256,99 @@ function buildRoadmapMetadata(task, roadmap = []) {
   return { genre, tags: tagList, searchText };
 }
 
+function buildRoadmapOverview(task, roadmap = []) {
+  const genre = inferRoadmapGenre(task, roadmap);
+  const highlights = roadmap
+    .slice(0, 3)
+    .map(node => node.title)
+    .filter(Boolean)
+    .join(', ');
+
+  if (highlights) {
+    return `A ${genre.toLowerCase()} roadmap for ${task} that starts with ${highlights}.`;
+  }
+
+  return `A ${genre.toLowerCase()} roadmap for ${task}.`;
+}
+
+function buildRoadmapTitle(task, roadmap = []) {
+  const source = normalizeSearchText(task).replace(/\bsource excerpt\b.*$/i, '').trim();
+  const firstLine = String(task || '').split(/\n+/)[0].replace(/reference file.*$/i, '').trim();
+  const genre = inferRoadmapGenre(task, roadmap);
+  const keywords = roadmap.slice(0, 2).map(node => node.title).filter(Boolean);
+
+  const title = firstLine || source || keywords.join(' ');
+  if (!title) return `${genre} roadmap`;
+
+  const words = title.split(/\s+/).filter(Boolean).slice(0, 8);
+  const concise = words.join(' ');
+  return concise.length > 52 ? `${concise.slice(0, 49).trim()}…` : concise;
+}
+
+function parseChatHistory(value) {
+  const entries = parseJsonArray(value);
+  if (!Array.isArray(entries)) return [];
+  return entries
+    .filter(entry => entry && typeof entry === 'object')
+    .map(entry => ({
+      role: String(entry.role || 'assistant'),
+      content: String(entry.content || ''),
+      rawHtml: Boolean(entry.rawHtml),
+    }));
+}
+
+function buildPlaygroundExample(title, desc, task) {
+  const text = normalizeSearchText(`${title} ${desc} ${task}`);
+
+  if (/sort|order|ranking/.test(text)) {
+    return 'Example problem: Build a function that takes [8, 3, 5, 1] and returns [1, 3, 5, 8].';
+  }
+  if (/fetch|api|request|network/.test(text)) {
+    return 'Example problem: Fetch a list of users from an API endpoint and render their names on the page.';
+  }
+  if (/form|input|validation|submit/.test(text)) {
+    return 'Example problem: Create a form that only submits when the email field is valid and shows a clear error otherwise.';
+  }
+  if (/array|loop|iterate|count|filter/.test(text)) {
+    return 'Example problem: Given [2, 4, 7, 9], return only the even numbers using one loop or array helper.';
+  }
+  if (/class|object|method|constructor/.test(text)) {
+    return 'Example problem: Create a small class that stores a user name and returns a greeting with a method.';
+  }
+
+  return `Example problem: Build a small solution for "${title}" using the idea described in the step.`;
+}
+
+function buildPlaygroundChallenge(task, node, index) {
+  const title = String(node?.title || `Step ${index + 1}`).trim();
+  const desc = String(node?.desc || '').trim();
+  const goal = desc || `Demonstrate ${title.toLowerCase()}`;
+  const example = buildPlaygroundExample(title, desc, task);
+  return {
+    prompt: `Build or fix code for this step: ${title}. Goal: ${goal}.`,
+    acceptance: `The code should show a working solution for ${title} and match the described goal.`,
+    starter: `Start from the task: ${title}. Focus on ${goal}.`,
+    example,
+  };
+}
+
+function nodeRequiresPlayground(task, node, index, roadmap = []) {
+  const text = normalizeSearchText(`${task} ${node.title || ''} ${node.desc || ''}`);
+  const programmingSignals = /code|build|implement|execute|debug|deploy|project|html|css|javascript|typescript|python|sql|react|node|api|function|class|loop|algorithm|program/i;
+  if (!programmingSignals.test(text)) return false;
+  if (node.type === 'boss') return true;
+  return [2, 5, 8].includes(index) || /execute|build|implement|debug|project/.test(text);
+}
+
+
+function assignRoadmapModes(task, roadmap = []) {
+  return roadmap.map((node, index) => ({
+    ...node,
+    mode: nodeRequiresPlayground(task, node, index, roadmap) ? 'playground' : 'quiz',
+    playground: nodeRequiresPlayground(task, node, index, roadmap) ? buildPlaygroundChallenge(task, node, index) : null,
+  }));
+}
+
 async function ensureColumn(table, column, definition) {
   const rows = await all(`PRAGMA table_info(${table})`);
   if (!rows.some(row => row.name === column)) {
@@ -208,6 +360,8 @@ async function ensureRoadmapSchema() {
   await ensureColumn('roadmaps', 'genre', "TEXT NOT NULL DEFAULT 'General'");
   await ensureColumn('roadmaps', 'tags_json', "TEXT NOT NULL DEFAULT '[]'");
   await ensureColumn('roadmaps', 'search_text', "TEXT NOT NULL DEFAULT ''");
+  await ensureColumn('roadmaps', 'overview', "TEXT NOT NULL DEFAULT ''");
+  await ensureColumn('roadmaps', 'chat_history_json', "TEXT NOT NULL DEFAULT '[]'");
 
   await run(`
     CREATE TABLE IF NOT EXISTS roadmap_tags (
@@ -225,6 +379,28 @@ async function ensureRoadmapSchema() {
   await run('CREATE INDEX IF NOT EXISTS idx_roadmap_tags_roadmap ON roadmap_tags(roadmap_id)');
 }
 
+async function ensurePomodoroSchema() {
+  await run(`
+    CREATE TABLE IF NOT EXISTS pomodoro_sessions (
+      token TEXT PRIMARY KEY,
+      user_id INTEGER NOT NULL,
+      roadmap_id INTEGER,
+      task TEXT NOT NULL,
+      node_title TEXT NOT NULL,
+      duration_seconds INTEGER NOT NULL,
+      remaining_seconds INTEGER NOT NULL,
+      status TEXT NOT NULL,
+      started_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      ends_at INTEGER NOT NULL,
+      FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY(roadmap_id) REFERENCES roadmaps(id) ON DELETE SET NULL
+    )
+  `);
+  await run('CREATE INDEX IF NOT EXISTS idx_pomodoro_user_status ON pomodoro_sessions(user_id, status)');
+  await run('CREATE INDEX IF NOT EXISTS idx_pomodoro_updated ON pomodoro_sessions(updated_at DESC)');
+}
+
 async function syncRoadmapTags(roadmapId, tags = []) {
   await run('DELETE FROM roadmap_tags WHERE roadmap_id = ?', [roadmapId]);
   for (const tag of tags) {
@@ -233,22 +409,24 @@ async function syncRoadmapTags(roadmapId, tags = []) {
 }
 
 async function backfillRoadmapMetadata() {
-  const rows = await all('SELECT id, task, roadmap_json, genre, tags_json, search_text FROM roadmaps');
+  const rows = await all('SELECT id, task, roadmap_json, genre, tags_json, search_text, overview FROM roadmaps');
   for (const row of rows) {
     const roadmap = parseJsonArray(row.roadmap_json);
     const metadata = buildRoadmapMetadata(row.task, roadmap);
+    const overview = String(row.overview || '').trim() || buildRoadmapOverview(row.task, roadmap);
     const currentTags = JSON.stringify(parseJsonArray(row.tags_json));
     const nextTags = JSON.stringify(metadata.tags);
     const currentGenre = String(row.genre || '');
     const currentSearch = String(row.search_text || '');
-    if (currentGenre !== metadata.genre || currentTags !== nextTags || currentSearch !== metadata.searchText) {
+    const currentOverview = String(row.overview || '');
+    if (currentGenre !== metadata.genre || currentTags !== nextTags || currentSearch !== metadata.searchText || currentOverview !== overview) {
       await run(
         `
           UPDATE roadmaps
-          SET genre = ?, tags_json = ?, search_text = ?
+          SET genre = ?, tags_json = ?, search_text = ?, overview = ?
           WHERE id = ?
         `,
-        [metadata.genre, nextTags, metadata.searchText, row.id]
+        [metadata.genre, nextTags, metadata.searchText, overview, row.id]
       );
     }
     await syncRoadmapTags(row.id, metadata.tags);
@@ -257,6 +435,327 @@ async function backfillRoadmapMetadata() {
 
 function randomToken() {
   return crypto.randomBytes(32).toString('hex');
+}
+
+const pomodoroClients = new Map();
+const pomodoroSessions = new Map();
+
+function buildTrackerUrl(req, token) {
+  const origin = `${req.headers['x-forwarded-proto'] || 'http'}://${req.headers.host || `localhost:${PORT}`}`;
+  return `${origin}/tracker.html?token=${encodeURIComponent(token)}`;
+}
+
+function hydratePomodoroSession(row) {
+  if (!row) return null;
+  return {
+    token: row.token,
+    userId: row.user_id,
+    roadmapId: row.roadmap_id,
+    task: row.task,
+    nodeTitle: row.node_title,
+    durationSeconds: Number(row.duration_seconds || 1500),
+    remainingSeconds: Number(row.remaining_seconds || 1500),
+    status: row.status || 'running',
+    startedAt: Number(row.started_at || Date.now()),
+    updatedAt: Number(row.updated_at || Date.now()),
+    endsAt: Number(row.ends_at || Date.now()),
+  };
+}
+
+function computePomodoroRemaining(session, now = Date.now()) {
+  if (!session) return 0;
+  if (session.status === 'running') {
+    return Math.max(0, Math.ceil((session.endsAt - now) / 1000));
+  }
+  return Math.max(0, Number(session.remainingSeconds || 0));
+}
+
+function snapshotPomodoroSession(session, now = Date.now()) {
+  const remainingSeconds = computePomodoroRemaining(session, now);
+  const status = session.status === 'running' && remainingSeconds <= 0 ? 'completed' : session.status;
+  return {
+    token: session.token,
+    roadmapId: session.roadmapId,
+    task: session.task,
+    nodeTitle: session.nodeTitle,
+    durationSeconds: Number(session.durationSeconds || 1500),
+    remainingSeconds,
+    status,
+    startedAt: session.startedAt,
+    updatedAt: session.updatedAt,
+    endsAt: session.endsAt,
+    progress: Math.max(0, Math.min(1, 1 - (remainingSeconds / Math.max(1, Number(session.durationSeconds || 1500))))),
+  };
+}
+
+async function savePomodoroSession(session) {
+  const timestamp = Date.now();
+  await run(
+    `
+      INSERT INTO pomodoro_sessions (token, user_id, roadmap_id, task, node_title, duration_seconds, remaining_seconds, status, started_at, updated_at, ends_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(token) DO UPDATE SET
+        roadmap_id = excluded.roadmap_id,
+        task = excluded.task,
+        node_title = excluded.node_title,
+        duration_seconds = excluded.duration_seconds,
+        remaining_seconds = excluded.remaining_seconds,
+        status = excluded.status,
+        updated_at = excluded.updated_at,
+        ends_at = excluded.ends_at
+    `,
+    [
+      session.token,
+      session.userId,
+      session.roadmapId || null,
+      session.task,
+      session.nodeTitle,
+      session.durationSeconds,
+      session.remainingSeconds,
+      session.status,
+      session.startedAt,
+      timestamp,
+      session.endsAt,
+    ]
+  );
+  session.updatedAt = timestamp;
+  pomodoroSessions.set(session.token, session);
+  return session;
+}
+
+async function loadPomodoroSession(token) {
+  if (pomodoroSessions.has(token)) return pomodoroSessions.get(token);
+  const row = await get('SELECT * FROM pomodoro_sessions WHERE token = ?', [token]);
+  const session = hydratePomodoroSession(row);
+  if (session) pomodoroSessions.set(token, session);
+  return session;
+}
+
+function getPomodoroClients(token) {
+  if (!pomodoroClients.has(token)) {
+    pomodoroClients.set(token, new Set());
+  }
+  return pomodoroClients.get(token);
+}
+
+function sendWebSocketFrame(socket, message) {
+  const payload = Buffer.from(String(message));
+  let header;
+
+  if (payload.length < 126) {
+    header = Buffer.alloc(2);
+    header[0] = 0x81;
+    header[1] = payload.length;
+  } else if (payload.length < 65536) {
+    header = Buffer.alloc(4);
+    header[0] = 0x81;
+    header[1] = 126;
+    header.writeUInt16BE(payload.length, 2);
+  } else {
+    header = Buffer.alloc(10);
+    header[0] = 0x81;
+    header[1] = 127;
+    header.writeBigUInt64BE(BigInt(payload.length), 2);
+  }
+
+  socket.write(Buffer.concat([header, payload]));
+}
+
+function broadcastPomodoroSnapshot(session) {
+  const snapshot = snapshotPomodoroSession(session);
+  const clients = pomodoroClients.get(session.token);
+  if (!clients || !clients.size) return snapshot;
+
+  const payload = JSON.stringify({ type: 'snapshot', snapshot });
+  for (const socket of clients) {
+    if (!socket.destroyed) {
+      sendWebSocketFrame(socket, payload);
+    }
+  }
+  return snapshot;
+}
+
+async function completeExpiredPomodoroSession(session) {
+  if (!session || session.status !== 'running') return session;
+  const remaining = computePomodoroRemaining(session);
+  if (remaining > 0) return session;
+
+  session.status = 'completed';
+  session.remainingSeconds = 0;
+  session.endsAt = Date.now();
+  await savePomodoroSession(session);
+  return session;
+}
+
+async function tickPomodoroSessions() {
+  const sessions = Array.from(pomodoroSessions.values());
+  for (const session of sessions) {
+    if (session.status !== 'running') continue;
+    const remaining = computePomodoroRemaining(session);
+    if (remaining <= 0) {
+      session.status = 'completed';
+      session.remainingSeconds = 0;
+      session.endsAt = Date.now();
+      await savePomodoroSession(session);
+      broadcastPomodoroSnapshot(session);
+    }
+  }
+}
+
+async function handlePomodoroStart(req, res) {
+  const session = await getSession(req);
+  if (!session) {
+    sendJson(res, 401, { error: 'Not authenticated' });
+    return;
+  }
+
+  let body;
+  try {
+    body = await readBody(req);
+  } catch {
+    sendJson(res, 400, { error: 'Invalid JSON body' });
+    return;
+  }
+
+  const durationMinutes = Math.max(5, Math.min(90, Number(body.durationMinutes || 25) || 25));
+  const durationSeconds = Math.round(durationMinutes * 60);
+  const token = randomToken();
+  const startedAt = Date.now();
+  const pomodoroSession = {
+    token,
+    userId: session.user_id,
+    roadmapId: Number(body.roadmapId || 0) || null,
+    task: String(body.task || 'Focus Session').trim() || 'Focus Session',
+    nodeTitle: String(body.nodeTitle || 'Pomodoro').trim() || 'Pomodoro',
+    durationSeconds,
+    remainingSeconds: durationSeconds,
+    status: 'running',
+    startedAt,
+    updatedAt: startedAt,
+    endsAt: startedAt + durationSeconds * 1000,
+  };
+
+  await savePomodoroSession(pomodoroSession);
+  const snapshot = broadcastPomodoroSnapshot(pomodoroSession);
+  sendJson(res, 200, {
+    token,
+    trackerUrl: buildTrackerUrl(req, token),
+    snapshot,
+  });
+}
+
+async function handlePomodoroAction(req, res, token) {
+  const session = await getSession(req);
+  if (!session) {
+    sendJson(res, 401, { error: 'Not authenticated' });
+    return;
+  }
+
+  const pomodoroSession = await loadPomodoroSession(token);
+  if (!pomodoroSession) {
+    sendJson(res, 404, { error: 'Pomodoro session not found' });
+    return;
+  }
+
+  if (pomodoroSession.userId !== session.user_id) {
+    sendJson(res, 403, { error: 'Not allowed' });
+    return;
+  }
+
+  let body;
+  try {
+    body = await readBody(req);
+  } catch {
+    sendJson(res, 400, { error: 'Invalid JSON body' });
+    return;
+  }
+
+  const action = String(body.action || '').trim();
+  const now = Date.now();
+
+  if (action === 'pause' && pomodoroSession.status === 'running') {
+    pomodoroSession.remainingSeconds = computePomodoroRemaining(pomodoroSession, now);
+    pomodoroSession.status = 'paused';
+    pomodoroSession.endsAt = now + pomodoroSession.remainingSeconds * 1000;
+  } else if (action === 'resume' && pomodoroSession.status === 'paused') {
+    pomodoroSession.status = 'running';
+    pomodoroSession.endsAt = now + Number(pomodoroSession.remainingSeconds || pomodoroSession.durationSeconds) * 1000;
+  } else if (action === 'reset') {
+    pomodoroSession.status = 'running';
+    pomodoroSession.remainingSeconds = pomodoroSession.durationSeconds;
+    pomodoroSession.startedAt = now;
+    pomodoroSession.endsAt = now + pomodoroSession.durationSeconds * 1000;
+  } else if (action === 'complete') {
+    pomodoroSession.status = 'completed';
+    pomodoroSession.remainingSeconds = 0;
+    pomodoroSession.endsAt = now;
+  } else {
+    sendJson(res, 400, { error: 'Unsupported pomodoro action' });
+    return;
+  }
+
+  await savePomodoroSession(pomodoroSession);
+  sendJson(res, 200, { snapshot: broadcastPomodoroSnapshot(pomodoroSession) });
+}
+
+async function handlePomodoroGet(req, res, token) {
+  const pomodoroSession = await loadPomodoroSession(token);
+  if (!pomodoroSession) {
+    sendJson(res, 404, { error: 'Pomodoro session not found' });
+    return;
+  }
+
+  const snapshot = await completeExpiredPomodoroSession(pomodoroSession);
+  sendJson(res, 200, { snapshot: snapshotPomodoroSession(snapshot) });
+}
+
+async function handlePomodoroUpgrade(req, socket, head) {
+  const url = new URL(req.url, `http://${req.headers.host || `localhost:${PORT}`}`);
+  if (url.pathname !== '/ws/pomodoro') {
+    socket.destroy();
+    return;
+  }
+
+  const token = url.searchParams.get('token');
+  if (!token) {
+    socket.destroy();
+    return;
+  }
+
+  const pomodoroSession = await loadPomodoroSession(token);
+  if (!pomodoroSession) {
+    socket.destroy();
+    return;
+  }
+
+  const acceptKey = crypto.createHash('sha1')
+    .update(String(req.headers['sec-websocket-key'] || '') + '258EAFA5-E914-47DA-95CA-C5AB0DC85B11')
+    .digest('base64');
+
+  socket.write([
+    'HTTP/1.1 101 Switching Protocols',
+    'Upgrade: websocket',
+    'Connection: Upgrade',
+    `Sec-WebSocket-Accept: ${acceptKey}`,
+    '',
+    '',
+  ].join('\r\n'));
+
+  const clients = getPomodoroClients(token);
+  clients.add(socket);
+
+  const snapshot = snapshotPomodoroSession(pomodoroSession);
+  sendWebSocketFrame(socket, JSON.stringify({ type: 'snapshot', snapshot }));
+
+  socket.on('data', () => {});
+  socket.on('close', () => {
+    clients.delete(socket);
+    if (!clients.size) pomodoroClients.delete(token);
+  });
+  socket.on('error', () => {
+    clients.delete(socket);
+    if (!clients.size) pomodoroClients.delete(token);
+  });
 }
 
 async function initDb() {
@@ -271,6 +770,7 @@ async function initDb() {
       updated_at TEXT NOT NULL
     )
   `);
+  await ensureUserSchema();
   await run(`
     CREATE TABLE IF NOT EXISTS sessions (
       token TEXT PRIMARY KEY,
@@ -289,6 +789,7 @@ async function initDb() {
       loading_text TEXT,
       roadmap_json TEXT,
       node_status_json TEXT,
+      chat_history_json TEXT NOT NULL DEFAULT '[]',
       earned_xp INTEGER NOT NULL DEFAULT 0,
       total_xp INTEGER NOT NULL DEFAULT 0,
       created_at TEXT NOT NULL,
@@ -297,6 +798,7 @@ async function initDb() {
     )
   `);
   await ensureRoadmapSchema();
+  await ensurePomodoroSchema();
   await run(`
     CREATE TABLE IF NOT EXISTS roadmap_ratings (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -320,7 +822,7 @@ async function getSession(req) {
 
   const row = await get(
     `
-      SELECT sessions.token, sessions.expires_at, users.id AS user_id, users.name, users.api_key, users.model
+      SELECT sessions.token, sessions.expires_at, users.id AS user_id, users.name, users.email, users.api_key, users.model, users.password_hash, users.password_salt
       FROM sessions
       JOIN users ON users.id = sessions.user_id
       WHERE sessions.token = ? AND sessions.expires_at > ?
@@ -328,6 +830,9 @@ async function getSession(req) {
     [token, Date.now()]
   );
 
+  if (row) {
+    row.api_key = decryptApiKey(row.api_key);
+  }
   return row || null;
 }
 
@@ -362,6 +867,8 @@ function buildRoadmapPrompt(task) {
   return `You are Zebri, an expert learning roadmap generator. Generate a structured 10-step learning roadmap as JSON.
 STRICT OUTPUT FORMAT - return ONLY valid JSON, no markdown, no explanation:
 {
+  "title": "Short roadmap title in one sentence.",
+  "overview": "One to two sentence roadmap summary.",
   "roadmap": [
     {
       "title": "Step title (max 4 words)",
@@ -408,7 +915,9 @@ async function generateRoadmapForUser(session, task) {
   );
 
   const parsed = parseRoadmapResponse(roadmapRaw);
-  const roadmap = Array.isArray(parsed.roadmap) ? parsed.roadmap.slice(0, 10) : [];
+  const roadmap = assignRoadmapModes(task, Array.isArray(parsed.roadmap) ? parsed.roadmap.slice(0, 10) : []);
+  const title = String(parsed.title || '').trim() || buildRoadmapTitle(task, roadmap);
+  const overview = String(parsed.overview || '').trim() || buildRoadmapOverview(task, roadmap);
   const nodeStatus = roadmap.map((_, index) => (index === 0 ? 'active' : 'locked'));
   roadmap.forEach((node, index) => {
     if (node.type === 'bonus') nodeStatus[index] = index === 0 ? 'active' : 'locked';
@@ -419,7 +928,7 @@ async function generateRoadmapForUser(session, task) {
 
   const metadata = buildRoadmapMetadata(task, roadmap);
 
-  return { roadmap, nodeStatus, totalXP, ...metadata };
+  return { roadmap, nodeStatus, totalXP, title, overview, ...metadata };
 }
 
 function parseJsonArray(value) {
@@ -433,24 +942,28 @@ function parseJsonArray(value) {
 
 async function toRoadmapRow(row, viewerUserId = null) {
   const roadmap = parseJsonArray(row.roadmap_json);
+  const modeRoadmap = assignRoadmapModes(row.task, roadmap);
   return {
     id: row.id,
     task: row.task,
+    title: buildRoadmapTitle(row.task, modeRoadmap),
     ownerId: row.user_id,
     ownerName: row.owner_name || row.name || '',
-    genre: row.genre || buildRoadmapMetadata(row.task, roadmap).genre,
+    genre: row.genre || buildRoadmapMetadata(row.task, modeRoadmap).genre,
     status: row.status,
     loading: row.status === 'loading',
     loadingText: row.loading_text || '',
-    roadmap,
+    roadmap: modeRoadmap,
     nodeStatus: parseJsonArray(row.node_status_json),
     earnedXP: row.earned_xp,
     totalXP: row.total_xp,
     averageRating: Number(row.average_rating || 0),
     ratingCount: Number(row.rating_count || 0),
     myRating: Number(row.my_rating || 0),
+    chatHistory: parseChatHistory(row.chat_history_json),
     canDelete: viewerUserId != null ? row.user_id === viewerUserId : false,
-    tags: parseJsonArray(row.tags_json).length ? parseJsonArray(row.tags_json) : buildRoadmapMetadata(row.task, roadmap).tags,
+    overview: String(row.overview || '').trim() || buildRoadmapOverview(row.task, modeRoadmap),
+    tags: parseJsonArray(row.tags_json).length ? parseJsonArray(row.tags_json) : buildRoadmapMetadata(row.task, modeRoadmap).tags,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -573,30 +1086,94 @@ async function handleLogin(req, res) {
     return;
   }
 
-  const name = String(body.name || '').trim() || 'Learner';
-  const apiKey = String(body.apiKey || '').trim();
-  const model = String(body.model || 'meta/llama-3.3-70b-instruct').trim();
+  const { loginId, email, name, password, apiKey, model } = normalizeLoginInput(body);
+  const hasPassword = Boolean(password);
+  const hasApiKey = Boolean(apiKey);
 
-  if (!apiKey || !apiKey.startsWith('nvapi-')) {
-    sendJson(res, 400, { error: 'Key must start with nvapi-. Get one at build.nvidia.com' });
-    return;
+  const lookupValues = [loginId, email || loginId].filter(Boolean);
+  let existing = null;
+  for (const value of lookupValues) {
+    existing = await get('SELECT * FROM users WHERE LOWER(name) = LOWER(?) OR LOWER(email) = LOWER(?) LIMIT 1', [value, value]);
+    if (existing) break;
   }
 
-  try {
-    await verifyNimLogin(apiKey, model);
-  } catch (error) {
-    sendJson(res, 401, { error: `Connection failed: ${error.message}` });
-    return;
+  if (hasPassword) {
+    if (existing && existing.password_hash) {
+      if (!verifyPassword(password, existing.password_salt, existing.password_hash)) {
+        sendJson(res, 401, { error: 'Invalid username/email or password.' });
+        return;
+      }
+      if (hasApiKey) {
+        if (!apiKey.startsWith('nvapi-')) {
+          sendJson(res, 400, { error: 'Key must start with nvapi-. Get one at build.nvidia.com' });
+          return;
+        }
+
+        try {
+          await verifyNimLogin(apiKey, model);
+        } catch (error) {
+          sendJson(res, 401, { error: `Connection failed: ${error.message}` });
+          return;
+        }
+      }
+    } else {
+      if (!hasApiKey) {
+        sendJson(res, 400, { error: 'A first-time password signup needs your NVIDIA API key once.' });
+        return;
+      }
+
+      if (!apiKey.startsWith('nvapi-')) {
+        sendJson(res, 400, { error: 'Key must start with nvapi-. Get one at build.nvidia.com' });
+        return;
+      }
+
+      try {
+        await verifyNimLogin(apiKey, model);
+      } catch (error) {
+        sendJson(res, 401, { error: `Connection failed: ${error.message}` });
+        return;
+      }
+    }
+  } else {
+    if (!hasApiKey) {
+      sendJson(res, 400, { error: 'Key must start with nvapi-. Get one at build.nvidia.com' });
+      return;
+    }
+
+    if (!apiKey.startsWith('nvapi-')) {
+      sendJson(res, 400, { error: 'Key must start with nvapi-. Get one at build.nvidia.com' });
+      return;
+    }
+
+    try {
+      await verifyNimLogin(apiKey, model);
+    } catch (error) {
+      sendJson(res, 401, { error: `Connection failed: ${error.message}` });
+      return;
+    }
   }
 
   const timestamp = nowIso();
-  const existing = await get('SELECT id FROM users WHERE name = ?', [name]);
+  const encryptedApiKey = hasApiKey ? encryptApiKey(apiKey) : null;
+  const passwordRecord = hasPassword ? hashPassword(password) : null;
   let userId;
+
   if (existing) {
     userId = existing.id;
-    await run('UPDATE users SET api_key = ?, model = ?, updated_at = ? WHERE id = ?', [apiKey, model, timestamp, userId]);
+    const updatePieces = ['api_key = ?', 'model = ?', 'email = ?', 'updated_at = ?'];
+    const updateValues = [encryptedApiKey || existing.api_key, model || existing.model, email || existing.email || '', timestamp];
+
+    if (hasPassword && !existing.password_hash) {
+      updatePieces.push('password_hash = ?', 'password_salt = ?');
+      updateValues.push(passwordRecord.hash, passwordRecord.salt);
+    }
+
+    await run(`UPDATE users SET ${updatePieces.join(', ')} WHERE id = ?`, [...updateValues, userId]);
   } else {
-    const result = await run('INSERT INTO users (name, api_key, model, created_at, updated_at) VALUES (?, ?, ?, ?, ?)', [name, apiKey, model, timestamp, timestamp]);
+    const result = await run(
+      'INSERT INTO users (name, email, api_key, model, password_hash, password_salt, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [name, email || '', encryptedApiKey || '', model, passwordRecord ? passwordRecord.hash : '', passwordRecord ? passwordRecord.salt : '', timestamp, timestamp]
+    );
     userId = result.lastID;
   }
 
@@ -605,7 +1182,7 @@ async function handleLogin(req, res) {
   await run('INSERT INTO sessions (token, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)', [token, userId, timestamp, expiresAt]);
   setCookie(res, SESSION_COOKIE, token, { maxAge: SESSION_MAX_AGE, httpOnly: true });
 
-  sendJson(res, 200, { user: { name, model } });
+  sendJson(res, 200, { user: { name, email: email || existing?.email || '', model } });
 }
 
 async function handleLogout(req, res) {
@@ -623,7 +1200,7 @@ async function handleMe(req, res) {
     sendJson(res, 200, { loggedIn: false });
     return;
   }
-  sendJson(res, 200, { loggedIn: true, user: { name: session.name, model: session.model } });
+  sendJson(res, 200, { loggedIn: true, user: { name: session.name, email: session.email || '', model: session.model } });
 }
 
 async function handleRoadmapsList(req, res) {
@@ -696,12 +1273,13 @@ async function handleRoadmapPatch(req, res, id) {
   await run(
     `
       UPDATE roadmaps
-      SET roadmap_json = ?, node_status_json = ?, earned_xp = ?, total_xp = ?, status = ?, loading_text = ?, updated_at = ?
+      SET roadmap_json = ?, node_status_json = ?, chat_history_json = ?, earned_xp = ?, total_xp = ?, status = ?, loading_text = ?, updated_at = ?
       WHERE id = ? AND user_id = ?
     `,
     [
       body.roadmap ? JSON.stringify(body.roadmap) : row.roadmap_json,
       body.nodeStatus ? JSON.stringify(body.nodeStatus) : row.node_status_json,
+      body.chatHistory ? JSON.stringify(body.chatHistory) : row.chat_history_json,
       Number.isFinite(body.earnedXP) ? body.earnedXP : row.earned_xp,
       Number.isFinite(body.totalXP) ? body.totalXP : row.total_xp,
       body.status || row.status,
@@ -738,14 +1316,15 @@ async function handleRoadmapCopy(req, res, id) {
   const nodeStatus = roadmap.map((_, index) => (index === 0 ? 'active' : 'locked'));
   const totalXP = Number(source.total_xp || 0) || roadmap.reduce((sum, node) => sum + (node.xp || 100), 0);
   const metadata = buildRoadmapMetadata(source.task, roadmap);
+  const overview = String(source.overview || '').trim() || buildRoadmapOverview(source.task, roadmap);
   const timestamp = nowIso();
 
   const created = await run(
     `
-      INSERT INTO roadmaps (user_id, task, status, loading_text, roadmap_json, node_status_json, earned_xp, total_xp, genre, tags_json, search_text, created_at, updated_at)
-      VALUES (?, ?, 'ready', NULL, ?, ?, 0, ?, ?, ?, ?, ?, ?)
+      INSERT INTO roadmaps (user_id, task, status, loading_text, roadmap_json, node_status_json, chat_history_json, earned_xp, total_xp, genre, tags_json, search_text, overview, created_at, updated_at)
+      VALUES (?, ?, 'ready', NULL, ?, ?, '[]', 0, ?, ?, ?, ?, ?, ?, ?)
     `,
-    [session.user_id, source.task, JSON.stringify(roadmap), JSON.stringify(nodeStatus), totalXP, metadata.genre, JSON.stringify(metadata.tags), metadata.searchText, timestamp, timestamp]
+    [session.user_id, source.task, JSON.stringify(roadmap), JSON.stringify(nodeStatus), totalXP, metadata.genre, JSON.stringify(metadata.tags), metadata.searchText, overview, timestamp, timestamp]
   );
 
   await syncRoadmapTags(created.lastID, metadata.tags);
@@ -770,8 +1349,8 @@ async function handleRoadmapRate(req, res, id) {
   }
 
   const rating = Number(body.rating);
-  if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
-    sendJson(res, 400, { error: 'Rating must be an integer between 1 and 5' });
+  if (!Number.isInteger(rating) || rating < 0 || rating > 5) {
+    sendJson(res, 400, { error: 'Rating must be an integer between 0 and 5' });
     return;
   }
 
@@ -782,16 +1361,20 @@ async function handleRoadmapRate(req, res, id) {
   }
 
   const timestamp = nowIso();
-  await run(
-    `
-      INSERT INTO roadmap_ratings (roadmap_id, user_id, rating, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?)
-      ON CONFLICT(roadmap_id, user_id) DO UPDATE SET
-        rating = excluded.rating,
-        updated_at = excluded.updated_at
-    `,
-    [id, session.user_id, rating, timestamp, timestamp]
-  );
+  if (rating === 0) {
+    await run('DELETE FROM roadmap_ratings WHERE roadmap_id = ? AND user_id = ?', [id, session.user_id]);
+  } else {
+    await run(
+      `
+        INSERT INTO roadmap_ratings (roadmap_id, user_id, rating, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(roadmap_id, user_id) DO UPDATE SET
+          rating = excluded.rating,
+          updated_at = excluded.updated_at
+      `,
+      [id, session.user_id, rating, timestamp, timestamp]
+    );
+  }
 
   const updated = await fetchRoadmapByIdForViewer(id, session.user_id);
   sendJson(res, 200, { roadmap: updated });
@@ -839,8 +1422,8 @@ async function handleRoadmapGenerate(req, res) {
   const metadata = buildRoadmapMetadata(task, []);
   const created = await run(
     `
-      INSERT INTO roadmaps (user_id, task, status, loading_text, roadmap_json, node_status_json, earned_xp, total_xp, genre, tags_json, search_text, created_at, updated_at)
-      VALUES (?, ?, 'loading', ?, '[]', '[]', 0, 0, ?, ?, ?, ?, ?)
+      INSERT INTO roadmaps (user_id, task, status, loading_text, roadmap_json, node_status_json, chat_history_json, earned_xp, total_xp, genre, tags_json, search_text, overview, created_at, updated_at)
+      VALUES (?, ?, 'loading', ?, '[]', '[]', '[]', 0, 0, ?, ?, ?, '', ?, ?)
     `,
     [session.user_id, task, 'Planning roadmap...', metadata.genre, JSON.stringify(metadata.tags), metadata.searchText, timestamp, timestamp]
   );
@@ -852,10 +1435,10 @@ async function handleRoadmapGenerate(req, res) {
     await run(
       `
         UPDATE roadmaps
-        SET status = 'ready', loading_text = NULL, roadmap_json = ?, node_status_json = ?, earned_xp = 0, total_xp = ?, genre = ?, tags_json = ?, search_text = ?, updated_at = ?
+        SET status = 'ready', loading_text = NULL, roadmap_json = ?, node_status_json = ?, earned_xp = 0, total_xp = ?, genre = ?, tags_json = ?, search_text = ?, overview = ?, updated_at = ?
         WHERE id = ? AND user_id = ?
       `,
-      [JSON.stringify(generated.roadmap), JSON.stringify(generated.nodeStatus), generated.totalXP, generated.genre, JSON.stringify(generated.tags), generated.searchText, updateTimestamp, roadmapId, session.user_id]
+      [JSON.stringify(generated.roadmap), JSON.stringify(generated.nodeStatus), generated.totalXP, generated.genre, JSON.stringify(generated.tags), generated.searchText, generated.overview, updateTimestamp, roadmapId, session.user_id]
     );
 
     await syncRoadmapTags(roadmapId, generated.tags);
@@ -980,6 +1563,23 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    if (req.method === 'POST' && pathname === '/api/pomodoro/start') {
+      await handlePomodoroStart(req, res);
+      return;
+    }
+
+    const pomodoroActionMatch = pathname.match(/^\/api\/pomodoro\/([a-f0-9]+)\/action$/);
+    if (pomodoroActionMatch && req.method === 'POST') {
+      await handlePomodoroAction(req, res, pomodoroActionMatch[1]);
+      return;
+    }
+
+    const pomodoroMatch = pathname.match(/^\/api\/pomodoro\/([a-f0-9]+)$/);
+    if (pomodoroMatch && req.method === 'GET') {
+      await handlePomodoroGet(req, res, pomodoroMatch[1]);
+      return;
+    }
+
     if (req.method === 'GET') {
       serveStatic(req, res);
       return;
@@ -991,8 +1591,15 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
+server.on('upgrade', (req, socket, head) => {
+  handlePomodoroUpgrade(req, socket, head).catch(() => socket.destroy());
+});
+
 initDb()
   .then(() => {
+    setInterval(() => {
+      tickPomodoroSessions().catch(() => {});
+    }, 1000);
     server.listen(PORT, () => {
       console.log(`Zebri server running at http://localhost:${PORT}`);
     });

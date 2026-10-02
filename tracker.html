@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Zebri Live Tracker</title>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@100..800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #07111f;
+    --panel: #fff7e6;
+    --ink: #08111f;
+    --yellow: #fde047;
+    --green: #4ade80;
+    --pink: #f472b6;
+    --sky: #38bdf8;
+    --shadow: 6px 6px 0 #0b1020;
+    --border: 3px solid #0b1020;
+    --font: 'Sora', sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; }
+  body {
+    font-family: var(--font);
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+    background:
+      radial-gradient(circle at top left, rgba(56,189,248,.18), transparent 28%),
+      radial-gradient(circle at top right, rgba(244,114,182,.14), transparent 22%),
+      linear-gradient(135deg, #fff7e6 0%, #eef7ff 52%, #fff1f7 100%);
+  }
+  .shell {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+  .shell-inner {
+    width: min(920px, 100%);
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 18px;
+  }
+  .card {
+    width: 100%;
+    background: var(--panel);
+    border: var(--border);
+    box-shadow: var(--shadow);
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+  .hero {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .eyebrow {
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: .14em;
+    color: #334155;
+  }
+  .title {
+    font-size: 30px;
+    line-height: 1.05;
+    font-weight: 800;
+    letter-spacing: -0.04em;
+  }
+  .sub {
+    font-size: 13px;
+    line-height: 1.7;
+    color: #475569;
+  }
+  .actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .action-btn {
+    border: var(--border);
+    box-shadow: 4px 4px 0 #0b1020;
+    background: var(--white);
+    font-family: var(--font);
+    font-size: 10px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: .11em;
+    padding: 12px 14px;
+    cursor: pointer;
+  }
+  .action-btn.primary { background: var(--yellow); }
+  .action-btn.sky { background: var(--sky); }
+  .action-btn.pink { background: var(--pink); }
+  .timer {
+    background:
+      radial-gradient(circle at top right, rgba(255,255,255,.28), transparent 32%),
+      linear-gradient(90deg, var(--yellow), #ffd9b0);
+    border: var(--border);
+    box-shadow: 4px 4px 0 #0b1020;
+    padding: 18px;
+    text-align: center;
+  }
+  .time {
+    font-size: clamp(72px, 22vw, 140px);
+    line-height: 1;
+    font-weight: 900;
+    letter-spacing: -0.06em;
+    font-variant-numeric: tabular-nums;
+  }
+  .status {
+    margin-top: 8px;
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: .12em;
+  }
+  .progress {
+    height: 12px;
+    border: var(--border);
+    box-shadow: 3px 3px 0 #0b1020;
+    background: #fff;
+    overflow: hidden;
+  }
+  .fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, var(--green), var(--sky));
+    transition: width .35s ease;
+  }
+  .meta {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .chip {
+    border: 2px solid #0b1020;
+    background: #fff;
+    padding: 12px;
+    box-shadow: 3px 3px 0 #0b1020;
+    font-size: 12px;
+    line-height: 1.5;
+  }
+  .chip strong {
+    display: block;
+    font-size: 9px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: .12em;
+    margin-bottom: 4px;
+  }
+  .error {
+    border: 2px dashed #0b1020;
+    padding: 18px;
+    background: rgba(255,255,255,.7);
+    font-size: 13px;
+    line-height: 1.6;
+  }
+  body.timer-only {
+    background: #050b14;
+    overflow: hidden;
+  }
+  body.timer-only .shell {
+    padding: 0;
+  }
+  body.timer-only .shell-inner {
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  body.timer-only .card {
+    width: 100%;
+    height: 100%;
+    border: none;
+    box-shadow: none;
+    border-radius: 0;
+    padding: clamp(20px, 4vw, 48px);
+    background:
+      radial-gradient(circle at 50% 18%, rgba(253,224,71,.22), transparent 30%),
+      linear-gradient(180deg, #07111f, #0b1220 60%, #050b14);
+    color: #f8fafc;
+    justify-content: center;
+    gap: 22px;
+  }
+  body.timer-only .hero,
+  body.timer-only .eyebrow,
+  body.timer-only .sub,
+  body.timer-only .progress,
+  body.timer-only .meta,
+  body.timer-only .error {
+    display: none;
+  }
+  body.timer-only .timer {
+    min-height: min(72vh, 720px);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 18px;
+    padding: clamp(24px, 5vw, 56px);
+  }
+  body.timer-only .time {
+    font-size: clamp(96px, 28vw, 240px);
+    color: #08111f;
+  }
+  body.timer-only .status {
+    font-size: 13px;
+    color: #0b1020;
+  }
+  body.timer-only .timer-actions {
+    display: flex;
+  }
+  @media (max-width: 520px) {
+    .card { padding: 18px; }
+    .meta { grid-template-columns: 1fr; }
+    .hero { flex-direction: column; }
+    .actions { width: 100%; }
+    .action-btn { flex: 1 1 100%; }
+  }
+</style>
+</head>
+<body>
+  <div class="shell">
+    <div class="shell-inner">
+      <div class="card">
+        <div class="hero">
+          <div>
+            <div class="eyebrow">Zebri live tracker</div>
+            <div class="title" id="session-title">Connecting...</div>
+            <div class="sub" id="session-sub">Waiting for the live session feed.</div>
+          </div>
+          <div class="actions timer-actions">
+            <button class="action-btn primary" id="toggle-focus-btn" onclick="toggleTimerFocus()">Full Screen Timer</button>
+            <button class="action-btn sky" id="browser-fullscreen-btn" onclick="toggleBrowserFullscreen()">Browser Fullscreen</button>
+          </div>
+        </div>
+        <div class="timer">
+          <div class="time" id="time-left">25:00</div>
+          <div class="status" id="session-status">Connecting</div>
+        </div>
+        <div class="progress"><div class="fill" id="progress-fill"></div></div>
+        <div class="meta">
+          <div class="chip"><strong>Roadmap</strong><span id="roadmap-label">-</span></div>
+          <div class="chip"><strong>Task</strong><span id="task-label">-</span></div>
+        </div>
+        <div class="error" id="error-box" style="display:none"></div>
+      </div>
+    </div>
+  </div>
+  <script src="tracker.js"></script>
+</body>
+</html>
